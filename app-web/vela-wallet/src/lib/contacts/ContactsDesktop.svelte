@@ -26,6 +26,8 @@
 		onuievent?: OnContactsUiEvent;
 		/** The sidebar's network filter was used. Absent in the gallery. */
 		onchainselect?: (row: ChainRowModel) => void;
+		/** The sidebar header's name button: the account switcher. Absent in the gallery. */
+		onaccounts?: () => void;
 		/**
 		 * The add/edit form, when one is open. It takes the third column — what
 		 * the phone draws as a bottom sheet — because a sheet sliding up the
@@ -41,7 +43,7 @@
 		};
 	}
 
-	let { model, onuievent, onchainselect, contactForm }: Props = $props();
+	let { model, onuievent, onchainselect, onaccounts, contactForm }: Props = $props();
 
 	// The third column plays the mobile bottom-sheet role (spec 015 mechanics
 	// reused); pure UI state seeded by the fixture.
@@ -136,6 +138,7 @@
 	<Sidebar
 		sidebar={model.sidebar}
 		onnav={(id) => onuievent?.({ kind: 'tab', id })}
+		{onaccounts}
 		{onchainselect}
 	/>
 

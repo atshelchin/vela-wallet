@@ -33,6 +33,7 @@ export const load: PageServerLoad = ({ params }) => {
 	const locale = toLocale(params.locale ?? '');
 	if (locale === undefined) error(404, `unsupported locale "${params.locale}"`);
 	const messages = resolveWalletMessages(locale);
+	const settingsMessages = resolveSettingsMessages(locale);
 
 	const home = buildMobileState('h1', messages, identiconSvgFor);
 	const desktop = buildDesktopState('d1', messages, identiconSvgFor);
@@ -75,6 +76,9 @@ export const load: PageServerLoad = ({ params }) => {
 		// The rescue sheets (spec 028 Phase 8) are settings components opened
 		// over the wallet and the send; they speak the settings corpus, and only
 		// the slice they need ships with this page.
-		rescueMessages: pickRescueMessages(resolveSettingsMessages(locale))
+		rescueMessages: pickRescueMessages(settingsMessages),
+		// The account switcher behind the header's name (founder call,
+		// 2026-09-05) is the settings sheet, so it speaks that corpus too.
+		accountsMessages: settingsMessages.accounts
 	};
 };

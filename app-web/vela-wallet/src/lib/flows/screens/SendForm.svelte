@@ -105,6 +105,7 @@
 		<RecipientField
 			label={model.recipient.label}
 			lines={model.recipient.lines}
+			address={model.recipient.address}
 			identiconSvg={model.recipient.identiconSvg}
 			pickLabel={model.recipient.pickLabel}
 			scanLabel={model.recipient.scanLabel}

@@ -627,6 +627,7 @@ function accountsSheet(
 		rows: ACCOUNTS.map((a, i) => ({
 			name: a.name,
 			addressDisplay: a.display,
+			addressFull: a.address,
 			identiconSvg: identicon(a.address),
 			amount: a.amount,
 			selected: i === 0
@@ -944,6 +945,7 @@ export function buildMobileState(
 		account: {
 			name: ACCOUNT_NAME,
 			addressDisplay: ADDRESS_DISPLAY,
+			addressFull: ADDRESS_FULL,
 			identiconSvg: identicon(ADDRESS_FULL),
 			action: m.account.switch
 		},

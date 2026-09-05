@@ -11,6 +11,7 @@
 
 import { fill } from '$lib/wallet/messages';
 import { shortenAddress } from '$lib/wallet/identity';
+import { currencyDisplayName } from './core/currency-catalog';
 import { moneyText } from '$lib/wallet/live';
 import type { SessionAccountRow } from '$lib/core/generated/SessionAccountRow';
 import {
@@ -46,7 +47,7 @@ import {
 } from '$lib/services/locale-format';
 import { preferences, TEXT_SCALE_LEVELS, type ThemeChoice } from '$lib/services/preferences.svelte';
 import { chainLogoURL } from '$lib/services/tokens-model';
-import { chainMeta, languageRows, markFor } from './fixtures';
+import { chainMeta, languageRows, markFor, currencyGlyph } from './fixtures';
 import type { SettingsMessages } from './messages';
 import type {
 	AddNetworkModel,
@@ -64,7 +65,8 @@ import type {
 	SelectSheetModel,
 	SettingsHomeModel,
 	StatusPillModel,
-	UrlFieldModel
+	UrlFieldModel,
+	AccountsSheetModel
 } from './model';
 
 // ---------------------------------------------------------------------------
@@ -431,19 +433,81 @@ export function withLiveNetworksDesktop(
  * is presentation the fixture already words; with no rate source yet the row
  * shows the code alone — honest, not a mocked conversion.
  */
-export function withLiveCurrency(model: SettingsHomeModel, view: CurrencyView): SettingsHomeModel {
+export function withLiveCurrency(
+	model: SettingsHomeModel,
+	view: CurrencyView,
+	catalog?: LiveCurrencyCatalog
+): SettingsHomeModel {
 	return {
 		...model,
 		sections: model.sections.map((section) => ({
 			...section,
+			// The phone's row says the code alone — the drawn ST1 shape, and the
+			// width a phone row has; the desktop's row carries the sample too.
 			rows: section.rows.map((row) => (row.id === 'currency' ? { ...row, value: view.code } : row))
 		})),
 		currencySheet: {
 			...model.currencySheet,
-			rows: model.currencySheet.rows.map((row) => ({
-				...row,
-				selected: row.id === view.code
-			}))
+			rows: liveCurrencyRows(model.currencySheet.rows, view, catalog)
+		}
+	};
+}
+
+/** The provider-driven list, when one has answered (spec 028 Phase 9, T491). */
+export interface LiveCurrencyCatalog {
+	/** USD first, then what the rate sources can price. Empty ⇒ the drawn list stands. */
+	codes: string[];
+	/** For the browser's currency names. */
+	locale: string;
+}
+
+/**
+ * "USD · $1,234.56" — the code and a sample in it, once a rate is committed;
+ * the code alone while the currency cannot be priced (024's rule: a defaulted
+ * 1 under a ¥ is a lie).
+ */
+function currencyRowValue(view: CurrencyView): string {
+	return view.rate === null ? view.code : `${view.code} · ${moneyText(1234.56, view)}`;
+}
+
+function liveCurrencyRows(
+	drawn: SelectRowModel[],
+	view: CurrencyView,
+	catalog?: LiveCurrencyCatalog
+): SelectRowModel[] {
+	if (catalog === undefined || catalog.codes.length === 0) {
+		return drawn.map((row) => ({ ...row, selected: row.id === view.code }));
+	}
+	return catalog.codes.map((code) => ({
+		id: code,
+		label: code,
+		glyph: currencyGlyph(code),
+		caption:
+			currencyDisplayName(code, catalog.locale) ?? drawn.find((row) => row.id === code)?.caption,
+		selected: code === view.code
+	}));
+}
+
+/** DST3's 货币 row, live: the committed value, and the menu it opens. */
+export function withLiveCurrencyDesktop(
+	model: SettingsDesktopModel,
+	view: CurrencyView,
+	catalog?: LiveCurrencyCatalog
+): SettingsDesktopModel {
+	const drawn = model.dropdown?.rowId === 'currency' ? model.dropdown.rows : [];
+	return {
+		...model,
+		localization: {
+			...model.localization,
+			rows: model.localization.rows.map((row) =>
+				row.id === 'currency'
+					? {
+							...row,
+							value: currencyRowValue(view),
+							options: liveCurrencyRows(drawn, view, catalog)
+						}
+					: row
+			)
 		}
 	};
 }
@@ -460,11 +524,11 @@ export function withLiveCurrency(model: SettingsHomeModel, view: CurrencyView): 
  * `id` is the origin, so the row's own `onclear` says exactly which grant to
  * revoke. Off the extension there are no grants and the fixture row stands.
  */
-export function withLiveConnections(
-	model: SettingsHomeModel,
+export function withLiveConnections<M extends { storage: SettingsHomeModel['storage'] }>(
+	model: M,
 	grants: { origin: string; address: string }[],
 	m: SettingsMessages
-): SettingsHomeModel {
+): M {
 	const groups = model.storage.groups.map((group) => {
 		if (group.label !== m.storage.connections) return group;
 		if (grants.length === 0) {
@@ -753,6 +817,7 @@ function liveAccountRows(input: LiveAccountsInput) {
 		return {
 			name: row.account.name,
 			addressDisplay: shortenAddress(row.account.address),
+			addressFull: row.account.address,
 			identiconSvg: input.identicon(row.account.address, row.account.name),
 			// No cached total yet: an empty cell, never a mocked figure.
 			amount: usd === undefined ? '' : moneyText(usd, input.currency),
@@ -762,12 +827,31 @@ function liveAccountRows(input: LiveAccountsInput) {
 }
 
 /** "3 accounts · $3,262.40 total" over what is actually known. */
-function liveAccountsSummary(input: LiveAccountsInput, m: SettingsMessages): string {
+function liveAccountsSummary(input: LiveAccountsInput, m: SettingsMessages['accounts']): string {
 	let total = 0;
 	for (const row of input.rows) total += input.balances.get(row.account.address.toLowerCase()) ?? 0;
-	return `${fill(m.accounts.countPrefix, { count: input.rows.length })}${fill(m.accounts.total, {
+	return `${fill(m.countPrefix, { count: input.rows.length })}${fill(m.total, {
 		amount: moneyText(total, input.currency)
 	})}`;
+}
+
+/**
+ * The switcher as one sheet, from nothing but the session and the balance
+ * core — for the header's account button (founder call, 2026-09-05), which
+ * opens it over the wallet and the address book, where no settings model is
+ * standing underneath to overlay.
+ */
+export function liveAccountsSheet(
+	input: LiveAccountsInput,
+	m: SettingsMessages['accounts']
+): AccountsSheetModel {
+	return {
+		title: m.title,
+		summary: liveAccountsSummary(input, m),
+		rows: liveAccountRows(input),
+		primary: m.createNew,
+		secondary: m.signInExisting
+	};
 }
 
 /**
@@ -785,7 +869,7 @@ export function withLiveAccounts(
 		...model,
 		accountsSheet: {
 			...model.accountsSheet,
-			summary: liveAccountsSummary(input, m),
+			summary: liveAccountsSummary(input, m.accounts),
 			rows: liveAccountRows(input)
 		}
 	};
@@ -801,7 +885,7 @@ export function withLiveAccountsDesktop(
 		...model,
 		account: {
 			...model.account,
-			summary: liveAccountsSummary(input, m),
+			summary: liveAccountsSummary(input, m.accounts),
 			rows: liveAccountRows(input)
 		}
 	};
@@ -815,6 +899,9 @@ function sizeText(bytes: number): string {
 	const { amount, unit } = formatBytes(bytes);
 	return `${amount} ${unit}`;
 }
+
+/** The drawn rows that describe something this client does not have. */
+const WEB_HAS_NO: Partial<Record<StorageItemId, true>> = { browsing: true };
 
 /** The row's meta line: the fixture's own shape, with the measured figures. */
 function storageItemMeta(
@@ -875,11 +962,16 @@ export function withLiveStorage<M extends { storage: SettingsHomeModel['storage'
 			}),
 			groups: model.storage.groups.map((group) => ({
 				...group,
-				items: group.items.map((item) =>
-					isItem(item.id) && GROUP_OF_ITEM[item.id] !== 'sessions'
-						? { ...item, meta: storageItemMeta(item.id, report, m) }
-						: item
-				)
+				// 浏览记录 is the phone's: the web has no in-app browser (spec 022),
+				// so its key list is empty by construction and the row would only
+				// ever say "0 records" about a thing that cannot exist here.
+				items: group.items
+					.filter((item) => !WEB_HAS_NO[item.id as StorageItemId])
+					.map((item) =>
+						isItem(item.id) && GROUP_OF_ITEM[item.id] !== 'sessions'
+							? { ...item, meta: storageItemMeta(item.id, report, m) }
+							: item
+					)
 			}))
 		}
 	};

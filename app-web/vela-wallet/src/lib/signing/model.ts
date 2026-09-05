@@ -179,7 +179,13 @@ export interface SigningModel {
 	/** cs29 ships the disclosure open — the whole point of that mock. */
 	techOpen: boolean;
 	fee: FeeModel;
-	signer: { label: string; name: string; identiconSvg: string };
+	signer: {
+		label: string;
+		name: string;
+		identiconSvg: string;
+		/** The signing account's address — the identicon viewer's seed. Live only. */
+		address?: string;
+	};
 	/**
 	 * The slide. There is no reject button anywhere in this vocabulary:
 	 * closing the sheet is the rejection (product contract, SPEC 签名).

@@ -27,7 +27,8 @@
 	import WalletDesktop from '$lib/wallet/WalletDesktop.svelte';
 	import WalletHome from '$lib/wallet/WalletHome.svelte';
 	import SignOutSheet from '$lib/session/ui/SignOutSheet.svelte';
-	import IdenticonViewer from '$lib/wallet/ui/IdenticonViewer.svelte';
+	import AccountSwitcher from '$lib/session/ui/AccountSwitcher.svelte';
+	import IdenticonViewerHost from '$lib/wallet/ui/IdenticonViewerHost.svelte';
 	import BottomSheet from '$lib/wallet/ui/BottomSheet.svelte';
 	import Dialog from '$lib/settings/ui/Dialog.svelte';
 	import RpcFixBody from '$lib/settings/ui/RpcFixBody.svelte';
@@ -59,7 +60,7 @@
 	import { loadCore } from '$lib/core/client';
 	import { currency } from '$lib/settings/core/currency.svelte';
 	import { withLiveWallet, withLiveWalletDesktop } from '$lib/wallet/live';
-	import { withLiveDesktopFlow, withLiveFlow } from '$lib/flows/live';
+	import { receiveNetworks, withLiveDesktopFlow, withLiveFlow } from '$lib/flows/live';
 	import { createSendSession, type SendSession } from '$lib/flows/core/send-session';
 	import { createBatchImportSession, type BatchImportSession } from '$lib/flows/core/batch-session';
 	import {
@@ -67,7 +68,7 @@
 		type ManageTokensSession
 	} from '$lib/wallet/core/manage-tokens-session';
 	import type { MtokView } from '$lib/core/generated/MtokView';
-	import { getAllNetworksSync } from '$lib/services/networks';
+	import { getAllNetworksSync, networkId } from '$lib/services/networks';
 	import { sendTokenId } from '$lib/flows/live-send';
 	import type { BatchView } from '$lib/core/generated/BatchView';
 	import { FeeQuote, IDLE_FEE_VIEW } from '$lib/flows/core/fee-quote.svelte';
@@ -100,6 +101,7 @@
 	let { data }: PageProps = $props();
 
 	const welcome = $derived(resolve('/[locale]', { locale: data.locale }));
+	const createHref = $derived(resolve('/[locale]/create', { locale: data.locale }));
 	const settings = $derived(resolve('/[locale]/settings', { locale: data.locale }));
 	const contactsHref = $derived(resolve('/[locale]/contacts', { locale: data.locale }));
 	const wide = new MediaQuery(`(min-width: ${BREAKPOINT_DESKTOP}px)`, false);
@@ -128,10 +130,12 @@
 	const signOut = $derived(view.sign_out);
 
 	/**
-	 * The identicon viewer. Opened from the artwork itself, wherever it is
-	 * drawn — the header on the phone layout, the sidebar on the wide one.
+	 * The account switcher (founder call, 2026-09-05), opened from the header's
+	 * name button on either layout. The identicon viewer needs no flag here any
+	 * more: every artwork opens it through the resident store, and the host at
+	 * the foot of this page draws it.
 	 */
-	let viewing = $state(false);
+	let switching = $state(false);
 
 	/**
 	 * The third column's own two subjects (spec 015 D3 and 021 A2, live): the
@@ -142,6 +146,12 @@
 	 */
 	let selectedAssetId = $state<string | null>(null);
 	let selectedTxId = $state<string | null>(null);
+	/**
+	 * The network whose code the receive screen shows (spec 028 Phase 9, T482):
+	 * the row that was tapped, or the sidebar's filter (T495). The list and the
+	 * page walk the same `receiveNetworks()` order, so an index names a chain.
+	 */
+	let selectedReceiveChainId = $state<number | null>(null);
 	const selectedTx = $derived(findFeedItem(feed.view, selectedTxId));
 	const txDetail = $derived(
 		selectedTx === undefined
@@ -515,6 +525,9 @@
 					},
 					amountChanged: (value: string) =>
 						sendSession?.dispatch({ type: 'set_amount', amount: value }),
+					// 最大 was drawn on the token card and wired to nothing (spec 028
+					// Phase 9, T489); the core's rule fills it fee-aware.
+					max: () => sendSession?.dispatch({ type: 'tap_max' }),
 					recipientChanged: (value: string) =>
 						sendSession?.dispatch({ type: 'set_recipient', recipient: value }),
 					advance: () => sendSession?.dispatch({ type: 'continue' }),
@@ -881,6 +894,8 @@
 	const flowInputs = $derived({
 		...liveInputs,
 		identity: identity ?? undefined,
+		fm: data.flowMessages,
+		receiveChainId: selectedReceiveChainId,
 		emptyCopy: data.flows.t4.base.kind === 'assets' ? data.flows.t4.base.model.empty : undefined,
 		send: sendInputs,
 		batch: batchInputs,
@@ -965,12 +980,53 @@
 		if (group) seedGroup(group);
 	});
 
-	function enter(entry: FlowEntry) {
-		// One column: a flow opening closes the asset detail (and vice versa).
-		selectedAssetId = null;
+	/**
+	 * What a pushed step is ABOUT, before the step opens (spec 028 Phase 9).
+	 * The history screen names a row by position, the receive list a network,
+	 * the assets screen a held token — each by an index into a list the live
+	 * builders walk in the same order.
+	 */
+	function noteTarget(to: string, index: number | undefined): void {
+		if (index === undefined) return;
+		if (to === 'tx-detail') selectTxAt(index);
+		else if (to === 'receive-qr')
+			selectedReceiveChainId = receiveNetworks()[index]?.chainId ?? null;
+		else if (to === 'token-detail') {
+			const token = balance.view.tokens[index];
+			selectedAssetId = token === undefined ? null : balanceTokenId(token);
+		}
+	}
+
+	/**
+	 * Open a flow from the home, the asset column or the token sheet. `detail`
+	 * names the held token a door is about (spec 028 Phase 9, RULING 3): 转账
+	 * from a token opens the form with it chosen, 收款 from a token opens its
+	 * own code — no picker in between, the token already names its chain.
+	 */
+	function enter(entry: FlowEntry, detail?: { assetId?: string }) {
+		// One column: a flow opening closes the asset detail (and vice versa) —
+		// except the token screen and the token's code, which ARE the asset.
+		if (entry !== 'token-detail' && entry !== 'receive-token') selectedAssetId = null;
+		if (detail?.assetId !== undefined) selectedAssetId = detail.assetId;
 		if (entry === 'send') {
 			nav.enter(entry);
-			void openSend();
+			const token =
+				detail?.assetId === undefined
+					? undefined
+					: balance.view.tokens.find((t) => balanceTokenId(t) === detail.assetId);
+			void openSend(
+				token === undefined
+					? undefined
+					: { preselected_symbol: token.symbol, preselected_network: networkId(token.chain_id) }
+			);
+			return;
+		}
+		if (entry === 'receive' && chainFilter.chainId !== null) {
+			// RULING 1: the sidebar's filter already chose the network — straight
+			// to its code, with the list one step back.
+			nav.enter(entry);
+			selectedReceiveChainId = chainFilter.chainId;
+			nav.push('receive-qr');
 			return;
 		}
 		nav.enter(entry);
@@ -1139,8 +1195,7 @@
 			<WalletDesktop
 				model={liveDesktop}
 				onnav={select}
-				onidenticon={() => (viewing = true)}
-				identiconViewerLabel={data.walletMessages.identiconViewer.a11yOpen}
+				onaccounts={() => (switching = true)}
 				onflow={enter}
 				onbalancetoggle={() => balance.togglePrivacy()}
 				onstatus={openRescue}
@@ -1184,10 +1239,16 @@
 						nav.close();
 					}}
 					onnavigate={(to, index) => {
-						if (to === 'tx-detail' && index !== undefined) selectTxAt(index);
+						noteTarget(to, index);
 						// The picker opens through the core, as the scanner does.
 						if (to === 'contact-pick' && sendSession) {
 							sendSession.dispatch({ type: 'open_contact_picker', target: null });
+							return;
+						}
+						// No desktop token screen exists: the asset detail column is
+						// it (nav.svelte.ts), and it opens through the model.
+						if (to === 'token-detail') {
+							nav.close();
 							return;
 						}
 						nav.push(to);
@@ -1232,7 +1293,17 @@
 						else nav.back();
 					}}
 					onnavigate={(to, index) => {
-						if (to === 'tx-detail' && index !== undefined) selectTxAt(index);
+						noteTarget(to, index);
+						// The token sheet's two doors leave the assets flow for the
+						// token's own send form / code (RULING 3).
+						if (to === 'send-token') {
+							enter('send', { assetId: selectedAssetId ?? undefined });
+							return;
+						}
+						if (to === 'receive-token') {
+							enter('receive-token');
+							return;
+						}
 						if (to === 'fee-token') feeSheetOpen = true;
 						else if (to === 'batch-import') void openBatch();
 						else if (to === 'scan' && sendSession) sendSession.dispatch({ type: 'open_scanner' });
@@ -1264,12 +1335,12 @@
 					model={liveHome}
 					destinations={WEB_DESTINATIONS}
 					onselect={select}
-					onidenticon={() => (viewing = true)}
-					identiconViewerLabel={data.walletMessages.identiconViewer.a11yOpen}
+					onaccounts={() => (switching = true)}
 					onflow={enter}
 					onbalancetoggle={() => balance.togglePrivacy()}
 					onstatus={openRescue}
 					onactivity={(row) => (selectedTxId = row.id ?? null)}
+					onasset={(row) => (selectedAssetId = row.id ?? null)}
 				/>
 			{/if}
 		</main>
@@ -1279,12 +1350,15 @@
 	<div class="waiting" aria-busy="true"></div>
 {/if}
 
-{#if viewing && identity}
-	<IdenticonViewer
-		copy={data.walletMessages.identiconViewer}
-		address={identity.address}
-		identiconSvg={identity.identiconSvg}
-		onClose={() => (viewing = false)}
+<IdenticonViewerHost copy={data.walletMessages.identiconViewer} />
+
+{#if switching && identity}
+	<AccountSwitcher
+		copy={{ accounts: data.accountsMessages, close: data.walletMessages.identiconViewer.close }}
+		wide={wide.current}
+		oncreate={() => void goto(createHref)}
+		onsignin={() => void goto(welcome)}
+		onclose={() => (switching = false)}
 	/>
 {/if}
 

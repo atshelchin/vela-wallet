@@ -15,13 +15,29 @@ import type { FeedView } from '$lib/core/generated/FeedView';
 import type { CurrencyView } from '$lib/core/generated/CurrencyView';
 import type { MtokView } from '$lib/core/generated/MtokView';
 import type { WalletFlowMessages } from './messages';
-import { getAllNetworksSync, nativeSymbol } from '$lib/services/networks';
-import { chainColor } from '$lib/wallet/fixtures';
-import type { ShareCardModel } from './model';
+import {
+	chainName,
+	explorerAddressURL,
+	getAllNetworksSync,
+	nativeSymbol
+} from '$lib/services/networks';
+import { chainLogoURL } from '$lib/services/tokens-model';
+import type { BalanceToken } from '$lib/core/generated/BalanceToken';
+import { balanceTokenMark, chainMark, tokenMarkFor } from './marks';
+import { chainColor, MASK } from '$lib/wallet/fixtures';
+import type { FactRowModel, FlowHeaderModel, ShareCardModel, TokenDetailModel } from './model';
 import type { WalletIdentity } from '$lib/wallet/identity';
 import { shortenAddress } from '$lib/wallet/identity';
+import { fill } from '$lib/wallet/messages';
 import { encodeQr } from '$lib/wallet/qr';
-import { liveActivityGroups, liveAssetRow } from '$lib/wallet/live';
+import {
+	liveActivityGroups,
+	liveActivityRow,
+	liveAssetRow,
+	moneyText,
+	tokenExplorerURL,
+	trimBalance
+} from '$lib/wallet/live';
 import { addressLines } from './fixtures';
 import { liveBatchImport, type BatchLiveInputs } from './live-batch';
 import { liveContactPick, type ContactPickLiveInputs } from './live-contact-pick';
@@ -72,7 +88,30 @@ export interface FlowsLiveInputs {
 	 * rides in, because this file's own `m` is the wallet home's nested map.
 	 */
 	addToken?: AddTokenLiveInputs;
+	/**
+	 * The flat flow corpus (spec 028 Phase 9): the receive and token screens
+	 * re-word their own titles and facts from it. Absent in older callers and
+	 * tests, where the drawn words stand.
+	 */
+	fm?: WalletFlowMessages;
+	/**
+	 * The network whose code the receive screen shows (T482): the tapped row
+	 * or the sidebar's filter. `null`/absent — the list's first network, which
+	 * is what the drawn R2 shows.
+	 */
+	receiveChainId?: number | null;
+	/** The sidebar's filter, when one is set — the home's `chainFilter`. */
+	chainFilter?: number | null;
+	/** The held token a detail screen is about (the page's `selectedAssetId`). */
+	selectedToken?: BalanceToken;
 }
+
+/** The networks the receive list walks, in the order the page indexes them. */
+export function receiveNetworks(): ReturnType<typeof getAllNetworksSync> {
+	return getAllNetworksSync();
+}
+
+export { balanceTokenMark, chainMark } from './marks';
 
 function liveAssets(model: AssetsModel, inputs: FlowsLiveInputs): AssetsModel {
 	const { balance: view, currency, m } = inputs;
@@ -93,41 +132,155 @@ function liveHistory(model: HistoryModel, inputs: FlowsLiveInputs): HistoryModel
 	};
 }
 
-/** The receive list: every network the wallet knows, all with THE address. */
+/**
+ * The receive list: every network the wallet knows, all with THE address —
+ * and the count in the subtitle is that list's, not the drawn eight (spec 028
+ * Phase 9, T481: "同一地址，通用于全部 8 个网络" over twelve rows).
+ */
 function liveReceiveList(model: ReceiveListModel, inputs: FlowsLiveInputs): ReceiveListModel {
 	const identity = inputs.identity;
 	if (identity === undefined) return model;
 	const template = model.rows[0];
+	const networks = receiveNetworks();
 	return {
 		...model,
-		rows: getAllNetworksSync().map((n) => ({
+		subtitle:
+			inputs.fm === undefined
+				? model.subtitle
+				: fill(inputs.fm['receive.networksLine'], { count: networks.length }),
+		rows: networks.map((n) => ({
 			name: n.displayName,
 			code: nativeSymbol(n.chainId),
 			badgeColor: chainColor(n.chainId),
+			chainId: n.chainId,
+			logoUrl: chainLogoURL(n.chainId) || undefined,
 			addressDisplay: shortenAddress(identity.address),
+			addressFull: identity.address,
 			copyLabel: template?.copyLabel ?? '',
 			qrLabel: template?.qrLabel ?? ''
 		}))
 	};
 }
 
-/** The QR sheet's account card is the person's; the network mark stays the
- *  list's first row until the tapped index rides the flow stack (recorded). */
+/**
+ * The QR screen, about the network that was actually chosen (spec 028 Phase 9,
+ * T482). Until this phase the tapped row's index fell off the flow stack and
+ * every code said "Ethereum" with an ETH mark. R3 — the asset variant, told
+ * apart by its contract line — is about the held token instead: its logo in
+ * the centre, its contract under the title, its chain in the words.
+ */
 function liveReceiveQr(model: ReceiveQrModel, inputs: FlowsLiveInputs): ReceiveQrModel {
 	const identity = inputs.identity;
 	if (identity === undefined) return model;
+	const token = model.contract === undefined ? undefined : inputs.selectedToken;
+	const chainId = token?.chain_id ?? inputs.receiveChainId ?? receiveNetworks()[0]?.chainId ?? 1;
+	const network = chainName(chainId);
+	const fm = inputs.fm;
+	const title =
+		fm === undefined
+			? model.title
+			: token === undefined
+				? fill(fm['receive.qrTitleNetwork'], { network })
+				: fill(fm['receive.qrTitleAsset'], { symbol: token.symbol, network });
 	return {
 		...model,
+		title,
 		// The code is the ADDRESS, encoded (spec 028 T411). Until now this screen
 		// drew 021's placeholder pattern, which never encoded anything — a person
 		// showed it to a friend and no money arrived.
 		code: encodeQr(identity.address),
+		contract:
+			model.contract === undefined || token === undefined
+				? model.contract
+				: {
+						...model.contract,
+						value:
+							token.token_address === null
+								? inputs.m.assetDetail.nativeToken
+								: shortenAddress(token.token_address),
+						copyValue: token.token_address ?? undefined
+					},
 		account: {
 			...model.account,
 			name: identity.name,
 			identiconSvg: identity.identiconSvg,
 			lines: addressLines(identity.address)
-		}
+		},
+		centre: token === undefined ? chainMark(chainId) : balanceTokenMark(token),
+		explorerUrl: explorerAddressURL(chainId, identity.address),
+		// What 保存图片 produces: R4, worded and marked for THIS network or token.
+		share:
+			fm === undefined
+				? undefined
+				: {
+						headline: fm['receive.shareCardHeadline'],
+						code: encodeQr(identity.address),
+						name: identity.name,
+						lines: addressLines(identity.address),
+						networkNote: fill(fm['receive.shareCardNetworkNote'], { network }),
+						networkMark: token === undefined ? chainMark(chainId) : balanceTokenMark(token),
+						identiconSvg: identity.identiconSvg,
+						wordmark: 'Vela Wallet'
+					}
+	};
+}
+
+/**
+ * T2 — the phone's token screen, about the held token the row named (spec 028
+ * Phase 9, T483). Until this phase it was the drawn fixture: a USDT the person
+ * did not hold, whichever row they tapped. The facts are the desktop's
+ * `liveAssetDetail` facts in T2's shape, worded from the flow corpus.
+ */
+function liveTokenDetail(model: TokenDetailModel, inputs: FlowsLiveInputs): TokenDetailModel {
+	const token = inputs.selectedToken;
+	const fm = inputs.fm;
+	if (token === undefined || fm === undefined) return model;
+	const { balance: view, currency, m } = inputs;
+	const hidden = view.hidden;
+	const held = parseFloat(token.balance) || 0;
+	const fiat =
+		hidden || token.price_usd === null
+			? m.balance.noPrice
+			: moneyText(held * token.price_usd, currency);
+	const rows = (inputs.feed?.rows ?? [])
+		.flatMap((row) => (row.type === 'item' ? [row.item] : []))
+		.filter((item) => item.chain_id === token.chain_id && item.symbol === token.symbol)
+		.map((item) => liveActivityRow(item, m, hidden));
+	const facts: FactRowModel[] = [
+		{
+			label: fm['tokenDetail.labelPrice'],
+			value:
+				token.price_usd === null
+					? m.balance.noPrice
+					: fill(fm['tokenDetail.priceValue'], {
+							symbol: token.symbol,
+							value: moneyText(token.price_usd, currency)
+						})
+		},
+		{
+			label: fm['tokenDetail.labelContract'],
+			value:
+				token.token_address === null
+					? m.assetDetail.nativeToken
+					: shortenAddress(token.token_address),
+			mono: token.token_address !== null,
+			copy:
+				token.token_address === null ? undefined : fm['componentsUi.identiconViewer.copyAddress'],
+			copyValue: token.token_address ?? undefined
+		},
+		{ label: fm['tokenDetail.labelDecimals'], value: String(token.decimals) },
+		{ label: fm['addToken.labelNetwork'], value: chainName(token.chain_id) }
+	];
+	return {
+		...model,
+		mark: balanceTokenMark(token),
+		symbol: token.symbol,
+		chain: chainName(token.chain_id),
+		balance: hidden ? MASK : `${trimBalance(token.balance)} ${token.symbol}`,
+		fiat,
+		facts,
+		rows,
+		explorerUrl: tokenExplorerURL(token, view.address)
 	};
 }
 
@@ -182,7 +335,8 @@ export function liveAddToken(model: AddTokenModel, inputs: AddTokenLiveInputs): 
 		: first !== undefined
 			? {
 					kind: 'token',
-					mark: { ticker: first.symbol, badgeColor: chainColor(first.chain_id) },
+					// The found token's own logo, by its contract (T492).
+					mark: tokenMarkFor(first.chain_id, first.symbol, view.input_address.trim() || null),
 					name: first.name,
 					detail: `${first.symbol} · ${m['tokenDetail.labelDecimals']} ${first.decimals} · ${first.network_name}`,
 					chip: first.added ? { text: m['addToken.tokenAdded'], tone: 'success' } : undefined
@@ -263,6 +417,12 @@ export function withLiveFlow(model: FlowScreenModel, inputs: FlowsLiveInputs): F
 			sheet: { kind: 'batch-import', model: liveBatchImport(model.sheet.model, inputs.batch) }
 		};
 	}
+	if (model.sheet?.kind === 'token-detail') {
+		next = {
+			...next,
+			sheet: { kind: 'token-detail', model: liveTokenDetail(model.sheet.model, inputs) }
+		};
+	}
 	if (inputs.contactPick && model.sheet?.kind === 'contact-pick') {
 		next = {
 			...next,
@@ -281,11 +441,24 @@ export function withLiveFlow(model: FlowScreenModel, inputs: FlowsLiveInputs): F
 	return next;
 }
 
-/** The desktop third-column shape of the same overlay. */
+/**
+ * The desktop third-column shape of the same overlay. The column's title is
+ * the live body's own header title whenever the body went live (spec 028
+ * Phase 9, T484): the panel used to keep the fixture's "发送 USDT" over a
+ * live ETH form, because the phone reads `header.title` and the column
+ * read `model.title`.
+ */
 export function withLiveDesktopFlow(
 	model: DesktopFlowModel,
 	inputs: FlowsLiveInputs
 ): DesktopFlowModel {
+	const next = withLiveDesktopBody(model, inputs);
+	if (next.body === model.body) return next;
+	const header = (next.body.model as { header?: FlowHeaderModel }).header;
+	return header === undefined ? next : { ...next, title: header.title };
+}
+
+function withLiveDesktopBody(model: DesktopFlowModel, inputs: FlowsLiveInputs): DesktopFlowModel {
 	switch (model.body.kind) {
 		case 'assets':
 			return { ...model, body: { kind: 'assets', model: liveAssets(model.body.model, inputs) } };

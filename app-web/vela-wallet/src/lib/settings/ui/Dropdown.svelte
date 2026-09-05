@@ -44,6 +44,7 @@
 	<button
 		type="button"
 		class="trigger"
+		data-field
 		aria-haspopup="listbox"
 		aria-expanded={open}
 		aria-label={label}
@@ -85,9 +86,8 @@
 		cursor: pointer;
 	}
 
-	.trigger:focus-visible {
-		outline: var(--border-emphasis) solid var(--color-accent-base);
-	}
+	/* Focus is app.css's `data-field` edge: a form control, quiet like the
+	   fields beside it, never the accent. */
 
 	.value {
 		overflow: hidden;

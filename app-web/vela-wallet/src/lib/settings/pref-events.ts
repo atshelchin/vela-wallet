@@ -21,6 +21,8 @@ export type SettingsPrefEvent =
 	| { kind: 'language'; id: string }
 	/** The slider's stop, 0-based — `TEXT_SCALE_LEVELS` names what it means. */
 	| { kind: 'text-scale'; index: number }
+	/** A display-currency code — the one row here that DOES reach a core (`display_currency`). */
+	| { kind: 'currency'; id: string }
 	| { kind: 'number-format'; id: string }
 	| { kind: 'date-format'; id: string }
 	| { kind: 'time-format'; id: string }

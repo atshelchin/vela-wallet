@@ -23,6 +23,7 @@ import { shortenAddress } from '$lib/wallet/identity';
 import { moneyText, trimBalance } from '$lib/wallet/live';
 import { fill } from '$lib/wallet/messages';
 import type { WalletFlowMessages } from './messages';
+import { chainMark, tokenMarkFor } from './marks';
 import type {
 	FactRowModel,
 	FeeRowModel,
@@ -67,15 +68,19 @@ export function sendTokenId(token: SendToken): string {
 // ---------------------------------------------------------------------------
 
 function mark(token: SendToken): TokenMarkModel {
-	return { ticker: token.symbol, badgeColor: chainColor(token.chain_id) };
+	return tokenMarkFor(token.chain_id, token.symbol, token.token_address, token.logo_urls);
 }
 
 /** A token row for the picker: the balance the core carries, priced by it too. */
 function tokenRow(token: SendToken, currency: CurrencyView): AssetRowModel {
+	const art = mark(token);
 	return {
 		ticker: token.symbol,
 		chain: chainName(token.chain_id),
 		badgeColor: chainColor(token.chain_id),
+		logoUrls: art.logoUrls,
+		badgeLogoUrl: art.badgeLogoUrl,
+		badgeHidden: art.badgeHidden,
 		balance: trimBalance(token.balance),
 		fiat:
 			token.price_usd === null
@@ -115,7 +120,11 @@ function feeRow(inputs: SendLiveInputs, template: FeeRowModel): FeeRowModel {
 			: nativeSymbol(chainId);
 	return {
 		label: m['componentsUi.gas.networkFee'],
-		mark: { ticker: symbol, badgeColor: chainColor(chainId) },
+		mark: tokenMarkFor(
+			chainId,
+			symbol,
+			quote?.fee_asset.type === 'erc20' ? quote.fee_asset.token : null
+		),
 		value: send.fee_busy || fee.busy ? '…' : feeText(quote),
 		openLabel: template.openLabel
 	};
@@ -157,7 +166,7 @@ export function liveSendPick(model: SendPickModel, inputs: SendLiveInputs): Send
 			chain === null
 				? undefined
 				: {
-						mark: { ticker: nativeSymbol(chain), badgeColor: chainColor(chain) },
+						mark: chainMark(chain),
 						text: fill(m['send.multiSendChainNotice'], { network: chainName(chain) })
 					},
 		rows,
@@ -215,6 +224,7 @@ export function liveSendForm(model: SendFormModel, inputs: SendLiveInputs): Send
 	const recipientBlock = {
 		label: m['send.recipientLabel'],
 		lines: recipientLines(send),
+		address: send.recipient || undefined,
 		identiconSvg: send.recipient ? identicon(send.recipient) : '',
 		pickLabel: m['send.recipientPickAria'],
 		scanLabel: m['send.scanAria'],
@@ -279,6 +289,7 @@ export function liveSendForm(model: SendFormModel, inputs: SendLiveInputs): Send
 			? send.recipients.map((draft, index) => ({
 					ordinal: fill(m['send.recipientN'], { n: index + 1 }),
 					name: draft.name ?? shortenAddress(draft.address),
+					address: draft.address,
 					identiconSvg: identicon(draft.address),
 					amount: `${draft.amount} ${token?.symbol ?? ''}`.trim(),
 					removeLabel: m['send.removeRecipient']
@@ -337,21 +348,18 @@ export function liveSendConfirm(model: SendConfirmModel, inputs: SendLiveInputs)
 		{
 			label: m['send.fromLabel'],
 			value: identity.name,
-			lead: { kind: 'identicon', svg: identicon(identity.address) }
+			lead: { kind: 'identicon', svg: identicon(identity.address), address: identity.address }
 		},
 		{
 			label: m['send.toLabel'],
 			value: send.recipient_identity?.name ?? shortenAddress(send.recipient),
-			lead: { kind: 'identicon', svg: identicon(send.recipient) },
+			lead: { kind: 'identicon', svg: identicon(send.recipient), address: send.recipient },
 			mono: send.recipient_identity?.name == null
 		},
 		{
 			label: m['componentsTx.detail.labelChain'],
 			value: chainName(chainId),
-			lead: {
-				kind: 'token',
-				mark: { ticker: nativeSymbol(chainId), badgeColor: chainColor(chainId) }
-			}
+			lead: { kind: 'token', mark: chainMark(chainId) }
 		},
 		{
 			label: m['send.estFeeLabel'],
@@ -506,7 +514,7 @@ export function liveFeeTokenPick(
 	return {
 		...model,
 		rows: fee.options.map((option) => ({
-			mark: { ticker: option.symbol, badgeColor: chainColor(chainId) },
+			mark: tokenMarkFor(chainId, option.symbol, option.contract),
 			symbol: option.symbol,
 			balanceLabel: fill(m['send.balanceLabel'], {
 				amount: trimBalance((Number(option.balance) / 10 ** option.decimals).toString(), 4)

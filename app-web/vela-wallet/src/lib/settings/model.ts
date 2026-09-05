@@ -194,6 +194,8 @@ export interface SettingsSectionModel {
 export interface AccountRowModel {
 	name: string;
 	addressDisplay: string;
+	/** The seed of the artwork — what the identicon viewer shows beside it. */
+	addressFull: string;
 	/** Inline identicon SVG from vela-core, seeded by the full address. */
 	identiconSvg: string;
 	/** Trailing text action — "切换账户". */
@@ -252,6 +254,8 @@ export interface AccountsSheetModel {
 	rows: {
 		name: string;
 		addressDisplay: string;
+		/** The seed of the artwork — what the identicon viewer shows beside it. */
+		addressFull: string;
 		identiconSvg: string;
 		amount: string;
 		selected: boolean;

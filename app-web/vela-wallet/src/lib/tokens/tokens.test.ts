@@ -53,6 +53,12 @@ describe('literal audit — product UI references tokens, never raw values', () 
 	 */
 	const LITERAL_WHITELIST = new Set([
 		'BrandMark.svelte',
+		// spec 028 Phase 9 (T488): the same brand asset as data, and the receive
+		// share IMAGE — a render product composed as an SVG string with the app's
+		// faces embedded (`@font-face` needs `font-family:`). Its surfaces still
+		// read the live tokens at save time; only the asset's fills are values.
+		'brand-mark.ts',
+		'share-image.ts',
 		'DemoPage.svelte',
 		'chains.ts',
 		// spec 026: the parallel-space badge is deliberately NOT product chrome.
@@ -150,6 +156,7 @@ describe('literal audit — product UI references tokens, never raw values', () 
 
 	it('no box-shadow or font-family literals (vars only)', () => {
 		for (const path of sources) {
+			if (LITERAL_WHITELIST.has(path.split('/').at(-1)!)) continue;
 			// examine whole declarations — they may span lines (prettier wraps values)
 			const declarations = readFileSync(path, 'utf8').split(';');
 			for (const decl of declarations) {

@@ -99,3 +99,48 @@ test('the two buttons leave for the create and sign-in journeys', async ({ page 
 	await page.getByRole('dialog').getByRole('button', { name: 'Sign In with Existing' }).click();
 	await expect(page).toHaveURL(/\/en\/?$/);
 });
+
+/**
+ * The header's name opens the same switcher (founder call, 2026-09-05): the
+ * chevron beside the name drew a disclosure that led nowhere, and the only
+ * switcher was three taps away on the settings screen.
+ */
+test('the wallet header opens the switcher, and a pick switches', async ({ page }) => {
+	await page.goto('/en/wallet');
+	await expect(page.getByText('First Wallet').first()).toBeVisible();
+
+	await page.getByRole('button', { name: /First Wallet/ }).click();
+	const sheet = page.getByRole('dialog');
+	await expect(sheet.getByText('Second Wallet')).toBeVisible();
+	await expect(sheet.getByRole('button', { name: /First Wallet/ })).toHaveAttribute(
+		'aria-current',
+		'true'
+	);
+
+	await sheet.getByRole('button', { name: /Second Wallet/ }).click();
+	await expect(page.getByRole('dialog')).toHaveCount(0);
+	await expect(page.getByText('Second Wallet').first()).toBeVisible();
+	await expect(page.getByText('First Wallet')).toHaveCount(0);
+});
+
+test.describe('on the wide layout', () => {
+	test.use({ viewport: { width: 1280, height: 900 } });
+
+	test('the sidebar header opens the switcher as a dialog, with the two ways out', async ({
+		page
+	}) => {
+		await page.goto('/en/wallet');
+		await expect(page.getByText('First Wallet').first()).toBeVisible();
+
+		await page.getByRole('button', { name: /First Wallet/ }).click();
+		const dialog = page.getByRole('dialog');
+		await expect(dialog.getByText('Second Wallet')).toBeVisible();
+		await dialog.getByRole('button', { name: 'Sign In with Existing' }).click();
+		await expect(page).toHaveURL(/\/en\/?$/);
+
+		await page.goto('/en/wallet');
+		await page.getByRole('button', { name: /First Wallet/ }).click();
+		await page.getByRole('dialog').getByRole('button', { name: 'Create New Account' }).click();
+		await expect(page).toHaveURL(/\/en\/create/);
+	});
+});

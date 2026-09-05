@@ -20,7 +20,7 @@ import type {
 } from '$lib/flows/model';
 import { chainMeta } from '$lib/services/chains';
 import { formatTime } from '$lib/services/locale-format';
-import { chainName } from '$lib/services/networks';
+import { chainName, explorerTxURL } from '$lib/services/networks';
 import { chainColor, MASK } from './fixtures';
 import { shortenAddress } from './identity';
 import { dayLabel, moneyText, trimBalance } from './live';
@@ -91,9 +91,14 @@ export function liveTxDetail(item: FeedItem, ctx: TxDetailContext): TxDetailMode
 		facts.push({
 			label: received ? m['componentsTx.detail.from'] : m['componentsTx.detail.to'],
 			value: item.alias ?? shortenAddress(item.counterparty),
-			lead: { kind: 'identicon', svg: ctx.identicon(item.counterparty) },
+			lead: {
+				kind: 'identicon',
+				svg: ctx.identicon(item.counterparty),
+				address: item.counterparty
+			},
 			mono: item.alias === null,
-			copy: m['componentsUi.identiconViewer.copyAddress']
+			copy: m['componentsUi.identiconViewer.copyAddress'],
+			copyValue: item.counterparty
 		});
 	}
 
@@ -120,7 +125,8 @@ export function liveTxDetail(item: FeedItem, ctx: TxDetailContext): TxDetailMode
 			label: m['componentsTx.detail.labelHash'],
 			value: shortenAddress(item.tx_hash),
 			mono: true,
-			copy: m['componentsUi.identiconViewer.copyAddress']
+			copy: m['componentsUi.identiconViewer.copyAddress'],
+			copyValue: item.tx_hash
 		});
 	}
 
@@ -137,6 +143,9 @@ export function liveTxDetail(item: FeedItem, ctx: TxDetailContext): TxDetailMode
 		positive: received,
 		facts,
 		viewOnExplorer: m['history.viewOnExplorer'],
+		// The hash is the only honest target; a record without one (a pending
+		// send the tracker has not yet resolved) draws the control inert.
+		explorerUrl: item.tx_hash === null ? undefined : explorerTxURL(item.chain_id, item.tx_hash),
 		deleteLabel: m['history.deleteRecord']
 	};
 }

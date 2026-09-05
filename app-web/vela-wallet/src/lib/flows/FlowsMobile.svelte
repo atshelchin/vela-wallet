@@ -45,6 +45,8 @@
 		addRecipient(): void;
 		removeRecipient(index: number): void;
 		pickFeeToken(index: number): void;
+		/** 最大 — the core's `tap_max`: the whole balance, net of the fee it estimates. */
+		max(): void;
 		done(): void;
 		/**
 		 * The picker's two sweep affordances (spec 028 T440): the master tick,
@@ -183,6 +185,7 @@
 				onpickRecipient={() => go('contact-pick')}
 				onscan={() => go('scan')}
 				onfee={() => go('fee-token')}
+				onmax={send ? () => send.max() : undefined}
 				onrecipientAction={(id) =>
 					go(
 						id === 'import' ? 'batch-import' : id === 'contacts' ? 'contact-pick' : 'add-recipient'
@@ -237,7 +240,11 @@
 				hideTitle
 				onclose={() => (sheetClosed = true)}
 			>
-				<TokenDetail model={sheet.model} />
+				<TokenDetail
+					model={sheet.model}
+					onsend={() => go('send-token')}
+					onreceive={() => go('receive-token')}
+				/>
 			</BottomSheet>
 		{:else if sheet.kind === 'add-token'}
 			<BottomSheet

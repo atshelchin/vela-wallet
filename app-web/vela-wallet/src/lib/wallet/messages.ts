@@ -43,7 +43,7 @@ export interface WalletMessages {
 		rpcUnavailableMultiple: string;
 	};
 	networkFilter: { pillAll: string; sheetTitle: string; allNetworks: string };
-	sidebar: { networks: string; searchPlaceholder: string };
+	sidebar: { networks: string };
 	receive: {
 		title: string;
 		addressLabel: string;
@@ -139,7 +139,6 @@ export const WALLET_KEYS = [
 	'componentsUi.networkFilter.selectChain',
 	'componentsUi.networkFilter.allNetworks',
 	'settingsModals.network.modalTitle',
-	'componentsUi.commandBar.placeholder',
 	'receive.title',
 	'receive.addressLabel',
 	'componentsUi.identiconViewer.copyAddress',

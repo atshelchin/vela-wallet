@@ -153,8 +153,7 @@ export function resolveWalletMessages(locale: Locale): WalletMessages {
 			allNetworks: k('componentsUi.networkFilter.allNetworks')
 		},
 		sidebar: {
-			networks: k('settingsModals.network.modalTitle'),
-			searchPlaceholder: k('componentsUi.commandBar.placeholder')
+			networks: k('settingsModals.network.modalTitle')
 		},
 		receive: {
 			title: k('receive.title'),
@@ -279,7 +278,6 @@ export function resolveContactsMessages(locale: Locale): ContactsMessages {
 			navExplore: k('componentsUi.mainNav.explore'),
 			navSettings: k('componentsUi.mainNav.settings'),
 			networksTitle: k('settingsModals.network.modalTitle'),
-			commandBarPlaceholder: k('componentsUi.commandBar.placeholder'),
 			allNetworks: k('componentsUi.networkFilter.allNetworks'),
 			close: k('componentsUi.identiconViewer.close')
 		}
@@ -565,7 +563,6 @@ export function resolveSettingsMessages(locale: Locale): SettingsMessages {
 		},
 		shell: {
 			networksTitle: k('settingsModals.network.modalTitle'),
-			commandBarPlaceholder: k('componentsUi.commandBar.placeholder'),
 			allNetworks: k('componentsUi.networkFilter.allNetworks')
 		},
 		walletTitle: k('componentsUi.mainNav.wallet'),

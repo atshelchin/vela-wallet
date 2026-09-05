@@ -36,6 +36,12 @@ export interface BalanceModel {
 	integer?: string;
 	/** e.g. "28" — rendered de-emphasised after the separator. */
 	decimals?: string;
+	/**
+	 * The mark between the two, from the person's number preset (spec 028
+	 * Phase 9, T480). Absent — the fixtures — the display draws `.`; live it
+	 * is the preset's, so `1.575,55` never reads `1.575.55`.
+	 */
+	decimalMark?: string;
 	liveText?: string;
 	status?: { kind: 'warning' | 'refreshing'; text: string };
 	a11yHide: string;
@@ -149,6 +155,8 @@ export interface ReceivePanelModel {
 
 export interface AssetDetailPanelModel {
 	kind: 'asset-detail';
+	/** Live only: the held token's key, so its two doors can name it. */
+	id?: string;
 	title: string;
 	token: {
 		ticker: string;
@@ -162,8 +170,11 @@ export interface AssetDetailPanelModel {
 	};
 	send: string;
 	receive: string;
-	facts: { label: string; value: string }[];
+	/** `copy` names the copy affordance; `copyValue` is the whole text when `value` is shortened. */
+	facts: { label: string; value: string; copy?: string; copyValue?: string }[];
 	viewOnExplorer: string;
+	/** Where "view on explorer" leads — live only; absent, the control is drawn inert. */
+	explorerUrl?: string;
 	transactionsTitle: string;
 	rows: ActivityRowModel[];
 }
@@ -175,7 +186,6 @@ export interface SidebarModel {
 	nav: { id: 'wallet' | 'contacts' | 'explore' | 'settings'; label: string; selected: boolean }[];
 	networksTitle: string;
 	networks: ChainRowModel[];
-	searchPlaceholder: string;
 }
 
 export type PanelId = 'none' | 'receive' | 'asset-detail';

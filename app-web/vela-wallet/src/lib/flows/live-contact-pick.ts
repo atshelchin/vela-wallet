@@ -44,6 +44,7 @@ export function liveContactPick(
 			name: displayName(contact),
 			group: view.groups.find((g) => g.members.some((mb) => mb.address === contact.address))?.name,
 			addressDisplay: shortenAddress(contact.address),
+			addressFull: contact.address,
 			identiconSvg: identicon(contact.address, displayName(contact))
 		}))
 	};

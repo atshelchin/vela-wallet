@@ -104,6 +104,12 @@ export interface FlowHeaderModel {
 export interface TokenMarkModel {
 	ticker: string;
 	badgeColor: string;
+	/** Live marks only (spec 028 Phase 9, T492): logo candidates, tried in order; the glyph shows otherwise. */
+	logoUrls?: string[];
+	/** Live marks only: the badge chain's logo over the dot. */
+	badgeLogoUrl?: string;
+	/** Live marks only: no badge — a native coin on its own chain, or a chain drawn as itself. */
+	badgeHidden?: boolean;
 }
 
 /**
@@ -118,11 +124,14 @@ export interface FactRowModel {
 	lead?:
 		| { kind: 'dot'; color: string }
 		| { kind: 'token'; mark: TokenMarkModel }
-		| { kind: 'identicon'; svg: string };
+		/** `address` is the seed; present, the artwork opens the identicon viewer on it. */
+		| { kind: 'identicon'; svg: string; address?: string };
 	/** Renders the value in the mono face (addresses, hashes). */
 	mono?: boolean;
 	/** Shows a copy affordance and its accessible name. */
 	copy?: string;
+	/** The whole text the affordance copies, when `value` is a shortened form. */
+	copyValue?: string;
 }
 
 export type StatusTone = 'success' | 'warning' | 'error' | 'info';
@@ -139,7 +148,13 @@ export interface NetworkRowModel {
 	name: string;
 	code: string;
 	badgeColor: string;
+	/** Live rows: the chain, so a tapped row can name the code it opens. */
+	chainId?: number;
+	/** Live rows: the chain's logo over the lettered badge. */
+	logoUrl?: string;
 	addressDisplay: string;
+	/** Live rows: the whole address the copy button writes. */
+	addressFull?: string;
 	copyLabel: string;
 	qrLabel: string;
 }
@@ -167,8 +182,8 @@ export interface ReceiveQrModel {
 	/** "Use this address to receive assets on Ethereum" / "… to receive USDT …". */
 	title: string;
 	closeLabel: string;
-	/** R3 only: the token's contract, shown above the account card. */
-	contract?: { label: string; value: string; copyLabel: string };
+	/** R3 only: the token's contract, shown above the account card. `copyValue` is the whole address. */
+	contract?: { label: string; value: string; copyLabel: string; copyValue?: string };
 	account: AddressCardModel;
 	/**
 	 * The code to draw (spec 028). Absent = the drawn placeholder, which is what
@@ -179,7 +194,11 @@ export interface ReceiveQrModel {
 	centre: TokenMarkModel;
 	warning: string;
 	saveImage: string;
+	/** Live only: what 保存图片 produces — R4, about this network or token (T488). */
+	share?: ShareCardModel;
 	viewOnExplorer: string;
+	/** Where "view on explorer" leads — live only; absent, the control is drawn inert. */
+	explorerUrl?: string;
 }
 
 /** R4 — the image "Save image" produces, not a screen someone navigates to. */
@@ -226,6 +245,8 @@ export interface TxDetailModel {
 	positive: boolean;
 	facts: FactRowModel[];
 	viewOnExplorer: string;
+	/** Where "view on explorer" leads — live only; absent, the control is drawn inert. */
+	explorerUrl?: string;
 	/**
 	 * "Delete record" — the feed's tombstone (spec 028 Phase 8). Absent in the
 	 * drawn fixtures, where the detail is a picture; present on a live row.
@@ -265,6 +286,8 @@ export interface TokenDetailModel {
 	transactionsTitle: string;
 	rows: ActivityRowModel[];
 	viewOnExplorer: string;
+	/** Where "view on explorer" leads — live only; absent, the control is drawn inert. */
+	explorerUrl?: string;
 }
 
 /* -------------------------------------------------------------- add token  */
@@ -334,6 +357,8 @@ export interface SendTokenCardModel {
 export interface RecipientCardModel {
 	ordinal: string;
 	name: string;
+	/** The seed of the artwork — what the identicon viewer shows beside it. */
+	address: string;
 	identiconSvg: string;
 	amount: string;
 	removeLabel: string;
@@ -371,6 +396,8 @@ export interface SendFormModel {
 	recipient?: {
 		label: string;
 		lines: [string, string];
+		/** The whole address, when there is one: the identicon viewer's seed. */
+		address?: string;
 		identiconSvg: string;
 		pickLabel: string;
 		/** sweep shows a scan button beside the picker; single does not. */
@@ -403,6 +430,8 @@ export interface ContactPickModel {
 		name: string;
 		group?: string;
 		addressDisplay: string;
+		/** The seed of the artwork — what the identicon viewer shows beside it. */
+		addressFull: string;
 		identiconSvg: string;
 	}[];
 }
@@ -452,7 +481,14 @@ export interface SendConfirmModel {
 	subline: string;
 	facts: FactRowModel[];
 	/** SD3b's recipient list / SD3c's asset list, as a second card. */
-	breakdown?: { lead?: TokenMarkModel; identiconSvg?: string; label: string; value: string }[];
+	breakdown?: {
+		lead?: TokenMarkModel;
+		identiconSvg?: string;
+		/** With `identiconSvg`: its seed, for the viewer. */
+		address?: string;
+		label: string;
+		value: string;
+	}[];
 	cta: string;
 }
 

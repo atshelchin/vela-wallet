@@ -37,6 +37,7 @@
 		label={model.signer.label}
 		name={model.signer.name}
 		identiconSvg={model.signer.identiconSvg}
+		address={model.signer.address}
 	/>
 	<SlideToConfirm
 		hint={model.confirm.hint}

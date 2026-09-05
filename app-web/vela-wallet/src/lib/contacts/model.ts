@@ -204,7 +204,6 @@ export interface ContactsDesktopModel {
 		nav: { id: 'wallet' | 'contacts' | 'explore' | 'settings'; label: string; selected: boolean }[];
 		networksTitle: string;
 		networks: ChainRowModel[];
-		searchPlaceholder: string;
 	};
 	title: string;
 	search: SearchModel;

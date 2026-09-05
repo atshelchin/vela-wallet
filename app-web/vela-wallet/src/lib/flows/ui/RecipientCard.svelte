@@ -21,7 +21,7 @@
 </script>
 
 <div class="card">
-	<Identicon svg={recipient.identiconSvg} size="row" />
+	<Identicon svg={recipient.identiconSvg} size="row" address={recipient.address} />
 	<span class="text">
 		<span class="ordinal">{recipient.ordinal}</span>
 		<span class="name">{recipient.name}</span>

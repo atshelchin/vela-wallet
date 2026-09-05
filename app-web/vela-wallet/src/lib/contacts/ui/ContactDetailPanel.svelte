@@ -28,7 +28,12 @@
 
 <div class="panel">
 	<div class="identity">
-		<Identicon svg={detail.contact.identiconSvg} size="detail" label={detail.contact.name} />
+		<Identicon
+			svg={detail.contact.identiconSvg}
+			size="detail"
+			label={detail.contact.name}
+			address={detail.contact.addressFull}
+		/>
 		<div class="who">
 			<p class="name">{detail.contact.name}</p>
 			<div class="chips">

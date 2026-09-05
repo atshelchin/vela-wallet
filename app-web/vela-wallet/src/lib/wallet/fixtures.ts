@@ -582,8 +582,7 @@ export function buildDesktopState(
 				{ id: 'settings', label: m.nav.settings, selected: false }
 			],
 			networksTitle: m.sidebar.networks,
-			networks: chainRows(m),
-			searchPlaceholder: m.sidebar.searchPlaceholder
+			networks: chainRows(m)
 		},
 		balance: balance(m, 'normal', DEFAULT_BALANCE),
 		actions: { receive: m.actions.receive, send: m.actions.send, scan: m.actions.scan },

@@ -293,7 +293,6 @@ export interface SettingsMessages {
 	};
 	shell: {
 		networksTitle: string;
-		commandBarPlaceholder: string;
 		allNetworks: string;
 	};
 	walletTitle: string;
@@ -522,7 +521,6 @@ export const SETTINGS_KEYS = [
 	'componentsUi.identiconViewer.close',
 	'componentsUi.identiconViewer.copyAddress',
 	'settingsModals.network.modalTitle',
-	'componentsUi.commandBar.placeholder',
 	'componentsUi.networkFilter.allNetworks',
 	'componentsUi.dock.send'
 ] as const;

@@ -192,3 +192,21 @@ describe('withLiveWallet', () => {
 		expect(model.assetsSection.mode).toBe('empty');
 	});
 });
+
+describe('liveBalance — the decimal mark is the preset’s (spec 028 Phase 9, T480)', () => {
+	it('carries the preset’s decimal mark beside the grouped integer', async () => {
+		const { preferences } = await import('$lib/services/preferences.svelte');
+		preferences.setNumberFormat('dot_comma');
+		try {
+			const model = liveBalance({ ...PRISTINE, display_total_usd: 1575.55 }, USD, m);
+			expect(model.integer).toBe('$1.575');
+			expect(model.decimals).toBe('55');
+			expect(model.decimalMark).toBe(',');
+		} finally {
+			preferences.setNumberFormat('comma_dot');
+		}
+		const model = liveBalance({ ...PRISTINE, display_total_usd: 1575.55 }, USD, m);
+		expect(model.integer).toBe('$1,575');
+		expect(model.decimalMark).toBe('.');
+	});
+});

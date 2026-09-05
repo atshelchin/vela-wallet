@@ -22,7 +22,7 @@ import type { CurrencyView } from '$lib/core/generated/CurrencyView';
 import type { FeedItem } from '$lib/core/generated/FeedItem';
 import type { FeedView } from '$lib/core/generated/FeedView';
 import { formatDate, groupDigits, numberSeparators } from '$lib/services/locale-format';
-import { chainName } from '$lib/services/networks';
+import { chainName, explorerAddressURL, explorerBaseURL } from '$lib/services/networks';
 import {
 	balanceTokenBadgeChainId,
 	balanceTokenLogoURLs,
@@ -237,6 +237,10 @@ export function liveBalance(
 		state: zeroLive ? 'zero-live' : 'normal',
 		integer: parts.integer,
 		decimals: parts.decimals,
+		// The mark between them is the preset's too (T480): `moneyParts`
+		// grouped the integer by it, and a `.` drawn after `1.575` read as a
+		// second thousands separator.
+		decimalMark: numberSeparators().decimal,
 		liveText: zeroLive ? m.balance.liveIndicator : undefined,
 		status
 	};
@@ -396,6 +400,7 @@ export function liveAssetDetail(
 		.map((item) => liveActivityRow(item, m, hidden));
 	return {
 		...drawn,
+		id: balanceTokenId(token),
 		title: token.symbol,
 		token: {
 			ticker: token.symbol,
@@ -423,12 +428,31 @@ export function liveAssetDetail(
 				value:
 					token.token_address === null
 						? m.assetDetail.nativeToken
-						: shortenAddress(token.token_address)
+						: shortenAddress(token.token_address),
+				// The shortened form is for reading; the copy writes the whole one.
+				copy: token.token_address === null ? undefined : m.identiconViewer.copyAddress,
+				copyValue: token.token_address ?? undefined
 			},
 			{ label: m.assetDetail.labelDecimals, value: String(token.decimals) }
 		],
-		rows
+		rows,
+		explorerUrl: tokenExplorerURL(token, view.address)
 	};
+}
+
+/**
+ * Where "view on explorer" leads for a held token: the token page, scoped to
+ * this account, for an ERC-20; the account page for the chain's native coin.
+ * `null` for a chain with no explorer — no link rather than a wrong one.
+ */
+export function tokenExplorerURL(token: BalanceToken, account: string | null): string | undefined {
+	const base = explorerBaseURL(token.chain_id);
+	if (base === null) return undefined;
+	if (token.token_address === null) {
+		return account === null ? undefined : explorerAddressURL(token.chain_id, account);
+	}
+	const suffix = account === null ? '' : `?a=${account}`;
+	return `${base}/token/${token.token_address}${suffix}`;
 }
 
 // ---------------------------------------------------------------------------

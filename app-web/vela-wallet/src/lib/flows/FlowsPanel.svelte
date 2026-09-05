@@ -43,6 +43,8 @@
 		addRecipient(): void;
 		removeRecipient(index: number): void;
 		pickFeeToken(index: number): void;
+		/** 最大 — the core's `tap_max`: the whole balance, net of the fee it estimates. */
+		max(): void;
 		done(): void;
 		selectAll(): void;
 		pickCta(): void;
@@ -133,6 +135,7 @@
 			onpickRecipient={() => go('contact-pick')}
 			onscan={() => (send ? send.openScanner() : go('scan'))}
 			onfee={() => (send ? send.openFeeSheet() : go('fee-token'))}
+			onmax={send ? () => send.max() : undefined}
 			onrecipientAction={(id) => {
 				if (id === 'import') {
 					if (send) send.openBatch();

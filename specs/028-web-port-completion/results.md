@@ -1287,3 +1287,269 @@ without it.
 3. **`fix_chain_resolved` alone does not re-read.** The balance core's retry
    is a throttled fetch like any other; Done and the breakdown's retry now
    also force a refresh, and the RPC-fix e2e watches the balance come back.
+
+## Phase 9a — The founder's first list after Phase 8 (2026-09-05)
+
+Four asks, from screenshots of the running app: the header's name should
+switch accounts (with create / sign-in beside it); every Nimiq identicon
+should open big, "so a person can tie the artwork to the address"; the
+sidebar's "搜索或执行 ⌘K" field should go; and every text field should stop
+shouting — "不要这么多 active 边框 outline 样式". A fifth came from the
+desktop screenshot of the viewer itself: the card spanned the window.
+
+### The account switcher, from the header
+
+`WalletHeader`'s name-and-chevron button had an `onclick` prop that no screen
+passed: the chevron drew a disclosure that led nowhere, and the only switcher
+was three taps away on the settings screen. `AccountSwitcher.svelte`
+(`session/ui`) is that switcher hoisted out of the settings models: it builds
+the sheet from the session's rows and the balance core's switcher cache
+through a new `liveAccountsSheet` (the settings page's `withLiveAccounts*`
+now share it), opens `switcher_opened` on mount and closes it on unmount as
+the settings page does, and a pick is `SwitchAccount` in the session's
+domain. A bottom sheet on the phone, a `Dialog` on the desktop, with the two
+buttons the settings sheet has. The wallet and contacts routes mount it from
+their sidebar/header; the settings desktop's header jumps to its own account
+page instead of drawing a second copy. The copy is the settings corpus's
+`accounts` slice, shipped by the wallet and contacts loaders.
+
+### The viewer, from every artwork
+
+Threading an `onidenticon` callback to every place an identicon is drawn —
+contact rows, recipient cards, the signer line, switcher rows — would have
+made each new artwork a plumbing job three layers deep, and the first one
+forgotten would have been the one that mattered. So the question "which
+address drew this?" is asked in one place: `identicon-viewer.svelte.ts` is
+an app-resident store (like the session), `Identicon` given an `address`
+renders a BUTTON that opens it, and one `IdenticonViewerHost` per signed-in
+route draws the viewer. The header's `onidenticon`/`identiconViewerLabel`
+plumbing is gone with it.
+
+Rows that were themselves `<button>`s (`ContactRow`, `ContactPickRow`,
+`AccountsSheetBody`, `AccountRow`) now hold the artwork BESIDE their button —
+nested interactive content is invalid HTML and one control to a screen
+reader. The artwork button is named by the corpus (`identiconViewer.a11yOpen`),
+never by the row's name: two buttons named "Alice" would be one control to
+assistive technology and a strict-mode collision in every e2e that finds a
+row by name. Left as pictures on purpose: the QR centres (`ShareCard`,
+`ContactQr`), the group pick list (a `listbox` may hold only `option`s), and
+the gallery (no host, no seed). Seeds added where the models lacked them:
+`addressFull` on the two account rows and the contact-pick rows, `address`
+on recipient cards, the identicon fact lead, the confirm breakdown, the
+recipient field and the signer.
+
+Layering: the viewer sits on its own `z-index: 20` layer, above the
+switcher's dialog (z 11), so an artwork tapped inside a dialog opens over it
+rather than under it.
+
+### No command bar
+
+The "搜索或执行 ⌘K" field ran nothing: an input with no handler and a `<kbd>`
+promising a palette that does not exist. Removed with its model field, its
+fixture line and the three `commandBarPlaceholder` message consumers; the
+corpus key stays (the six-step corpus change is not worth a removed lie).
+
+### One quiet focus rule for text entry
+
+Two rings on the token search: the global `:focus-visible` halo (app.css)
+on the input INSIDE the field, and the field's own accent `:focus-within`
+outline around it. Elsewhere five components each defined their own accent
+focus. Now `app.css` owns text-entry focus: `[data-field]:focus-within`
+draws one hairline in `fg.muted` INSIDE the box (`outline-offset: -1px`, so
+nothing reflows and borderless wells get an edge without a border), the
+halo skips text entry and `data-field` boxes, and an invalid / toned field
+keeps its own colour while focused. Every field carries `data-field` — the
+input itself when it is its own box, the well around a borderless input
+otherwise — and the five per-component accent rules are gone. The `Dropdown`
+trigger takes the same rule (a form control beside fields). Buttons, links
+and rows keep the keyboard halo: that one never showed on a click.
+
+Never the accent on a field: accent is for the one action that moves money,
+and a person typing is not there yet (CLAUDE.md rule 4, applied).
+
+### `--layout-promptCard` did not exist
+
+Spec 019's results recorded declaring it through `WEB_ADDITIONS`; it never
+was. `PromptSheet`, `SignOutSheet` and `IdenticonViewer` all read
+`max-width: var(--layout-promptCard)` as invalid and spanned the desktop
+window — which is the "太长了" the founder saw. Declared at 440px (a
+42-character address in the mono face on one line inside the card padding).
+Lesson kept: a token referenced by a component must be grepped in the
+GENERATED file, not trusted from a results entry.
+
+### Gates
+
+- `pnpm check`: 1,418 files, 0 errors, 0 warnings.
+- `pnpm lint`: Prettier and ESLint green (one `svelte/prefer-svelte-reactivity`
+  finding on the switcher, fixed with `SvelteMap`; one literal-audit finding —
+  `box-shadow: none` is a literal to `tokens.test.ts` — fixed by not needing
+  it: the halo rule skips text entry, so there is nothing to reset).
+- Unit: **66 files / 890 tests** (+5: `liveAccountsSheet` ×2, `Identicon`
+  browser tests ×3).
+- e2e, isolated 4174 preview, `--workers=2`: the full three-engine run put
+  **chromium 144/144** green — every suite that walks a contact row, a
+  switcher row or a field is on chromium — and lost the preview at 4.3 min,
+  exactly as Phase 8 recorded (firefox 21 + webkit 27 failed with
+  `NS_ERROR_NET_ERROR_RESPONSE`, no assertion among them). The firefox +
+  webkit storage projects re-run alone on a fresh preview: **54/54 in
+  2.4 min**. New coverage: `accounts.e2e.ts` (+2: the header on both widths),
+  `identicon-viewer.e2e.ts` (+3: header, settings row, over the switcher).
+- Visual check (a temporary spec, deleted): six screenshots read — the phone
+  switcher sheet, the viewer over it, the token picker's search with the one
+  quiet edge and no ring, the desktop switcher dialog with the sidebar minus
+  its ⌘K field (the two "home" frames caught the launch animation). The
+  desktop viewer frame could not be read in this session, so its width is a
+  permanent assertion instead: `identicon-viewer.e2e.ts` measures the card
+  at ≤ 440px on the wide layout. Chromium, isolated preview: 8/8 across
+  `accounts` + `identicon-viewer`.
+
+## Phase 9b–9f — The founder's second pass, executed (2026-09-05)
+
+"可以的 按你推荐得来": the three RULINGs went as recommended, and the plan's
+seventeen tasks were done in the plan's order. What each one turned out to
+be, beyond the plan's one-liners:
+
+### 9b — Truth first
+
+- **T480** `BalanceModel.decimalMark`, from `numberSeparators().decimal`; the
+  display draws `.` only for the fixtures. Unit test under two presets.
+- **T481 / T482** `liveReceiveList` counts what it lists and each row names
+  its chain, its whole address and its logo; the page keeps
+  `selectedReceiveChainId` from the tapped row's index (`receiveNetworks()`
+  is the one order both walk) and `liveReceiveQr` words the title, marks the
+  centre and targets the explorer from it. R3 — told apart by its contract
+  line — is about `selectedToken` instead. `live-receive.test.ts`;
+  `receive-code.e2e.ts` counts the rows against the registry and reads the
+  second chain's name off the second code.
+- **T483** The phone's token sheet went live for the first time
+  (`liveTokenDetail`): the held token's balance, price, contract (whole, to
+  copy), decimals, network, its feed rows and its explorer page. The row's
+  index rides `onnavigate('token-detail', i)` on the phone; on the desktop
+  the same tap opens the asset column instead of pushing a step the stack
+  never had.
+- **T484** `withLiveDesktopFlow` re-titles the column from the live body's
+  own `header.title` — one rule for every body that carries a header, so the
+  picker, form, confirm and receipt titles all follow.
+- **T485** `withLiveConnections` is generic over both models; 浏览记录 is
+  filtered out of the storage groups on the web (its key list is empty by
+  construction here).
+
+### 9c — Dead controls
+
+- **T486** `services/clipboard.ts` — one `copyText`. Every copy affordance
+  writes through it: the receive rows (the whole address rides on the row
+  now), the QR's address and contract, the phone token facts, the tx detail
+  facts (`copyValue` carries the un-shortened counterparty / hash), and the
+  desktop asset column's contract fact, which gained the copy affordance the
+  phone's had.
+- **T487** Explorer controls are LINKS, not handlers: `Button` learned
+  `external` (new tab, no opener) and the two plain buttons became anchors.
+  Targets: the account page for a network's code, the token page scoped to
+  the account (`/token/<contract>?a=<account>`) for a held token, the tx
+  page for a record with a hash. A chain with no explorer draws the control
+  inert rather than pointing it somewhere wrong.
+- **T488** 保存图片 produces a PNG: `share-image.ts` composes R4 as an SVG
+  string (the drawn geometry; colours read from the live tokens at save
+  time; the app's two faces embedded from our own origin so the picture
+  matches the screen; the identicon nested in the centre; the brand mark
+  from `ui/brand-mark.ts`), draws it at 2× and hands it over through
+  `file-io.saveBlob`. The browser test rasterises the card and DECODES the
+  code back to the address — the identicon in the centre, the 2× draw and
+  the PNG all survived; the e2e asserts the download and its name. The two
+  files are audit-whitelisted for the same reason `BrandMark.svelte` is.
+- **T489** 最大 dispatches `tap_max`; the send e2e reads a fill of `1.4…`
+  for a 1.5 ETH balance — the core's reserve math, never the raw balance.
+- **T490** The form's own quote, in `send.rs`: a complete single-transfer
+  form (valid payee, amount > 0) arms a 400 ms `StartTimer { FormEstimate }`;
+  the newest timer alone is answered and issues the exact `EstimateFee`;
+  the answer is the same chain-guarded `fee_estimate` every surface reads,
+  keyed by token · payee · fee coin so the same form is not quoted twice
+  and a changed fee coin is. Continue's pre-check takes the pipeline over
+  and a late debounce asks for nothing; the Max, warm-up and submit
+  pipelines are never disturbed. Three rule tests; eight existing tests and
+  the `continue_to_confirm` helper learned to drop the debounce the way they
+  already drop the 15 s timer (`DomainDriver::drop_matching`). wasm
+  rebuilt: `vela_core_bg.cbfa8d797399.wasm`, 3,725,914 B (+2,141 B).
+  The send e2e asserts the fee row names a figure BEFORE Continue.
+- **T491** 货币 on the desktop: `SettingsPrefEvent` gained `currency`, the
+  route answers it with `currency.choose`, `withLiveCurrencyDesktop` fills
+  the row's value ("USD · $1,234.56") and its menu. The list is
+  provider-driven on both widths — the Chainlink feed codes ∪ the
+  configured endpoint's coverage (`currency-catalog.ts`), USD first, the
+  drawn eight as the floor before anything answers — named by
+  `Intl.DisplayNames` in the page's locale rather than a corpus of currency
+  names. Not e2e'd: the desktop switch itself (the phone's conversion is
+  `rate-live.e2e.ts`).
+
+### 9d — Logos, once (T492)
+
+`flows/marks.ts`: `chainMark`, `tokenMarkFor(chainId, symbol, contract,
+namedLogos?)`, `balanceTokenMark` — the asset rows' logo triple built by one
+rule and worn by the send picker rows, the token card, the fee row and its
+options, the sweep's chain notice, the confirm page's chain fact, the
+receive rows (the chain's logo over the lettered badge), the QR centre and
+the token screen. The share image draws the network mark as the lettered
+disc — a logo would be a cross-origin fetch inside an `<img>` document —
+recorded, not hidden.
+
+### 9e — The doors and the filter (RULINGS 1–3)
+
+- **T493** 转账 from a token opens the form with it chosen: the asset
+  column and the phone token sheet name their token, the route opens the
+  send session with `preselected_symbol` + `preselected_network`
+  (`networkId(chainId)` — the same string `fetch_tokens` stamps), and the
+  core lands on `enter_details`; back is the picker.
+- **T494** 收款 from a token enters `receive-token` (`['r1','r3']` /
+  `['dr1','dr3']`): the token's code, contract line, logo and
+  `qrTitleAsset`, and its share image.
+- **T495** With a network chosen in the sidebar, 收款 enters R1 and pushes
+  R2 for that chain at once — the list is one step back.
+- **T496** The sidebar draws its network section only when given rows; the
+  contacts and settings routes pass none and their `pickChain` navigations
+  are gone. The gallery's DC/DST boards still carry the list until they are
+  re-exported (canon is the design source, not this code).
+- `token-doors.e2e.ts` proves the four entries on the stubbed chain.
+
+### 9f — The careful pass (T497), honestly
+
+Done as an automated matrix, not as the manual walk the founder asked for:
+every fix above has a unit or e2e assertion, the full suite ran on three
+engines, and the earlier visual pass covered the switcher, viewer and
+picker focus. What has NOT been done is a person walking every drawn control
+on both widths against `MANUAL-TEST-100-CLUES.md`. One leftover found on
+the way and left as it is: the group pick list's identicons stay pictures
+(listbox semantics, recorded in 9a). The add-token result mark, found on
+the same walk, now wears the found token's own logo by its contract.
+
+### Gates (T498) — at the end of this session, tree uncommitted
+
+- `pnpm check`: 1,424 files, 0 errors, 0 warnings (`sync-wasm` on
+  `vela_core_bg.cbfa8d797399.wasm`, core types regenerated —
+  `SendTimerTag` gained `form_estimate` on both the web and the Expo-side
+  generated dirs).
+- `pnpm lint`: Prettier and ESLint green (the external explorer anchors carry
+  `no-navigation-without-resolve` suppressions with their reason; the
+  currency catalog lost a useless assignment).
+- Unit: **68 files / 899 tests** (+9 this phase: `live-receive.test.ts` ×5,
+  `share-image.svelte.test.ts` ×2 including the decode, the decimal-mark
+  test, the `liveAccountsSheet` pair from 9a already counted).
+- Rust: `cargo test -p vela-core --features i18n-all,crux --test app_send`
+  — **96 passed** (93 rules as before, 3 new; 8 tests and one helper taught
+  to drop the form quote's debounce).
+- wasm: `rust/scripts/build-web.mjs` → 3,725,914 B (+2,141 B over Phase 8),
+  under the 4,000,000 ceiling; synced.
+- e2e, isolated 4174 preview, `--workers=2`: the full three-engine run put
+  **chromium 143/144** green with ONE real failure — the phone's currency row
+  had grown a sample after its code, and `settings-persistence` looks for
+  the bare code; the row is the code alone again (the desktop keeps the
+  sample) — and lost the preview at 4.2 min as Phase 8 and 9a did. Re-runs:
+  chromium `settings-persistence` + `receive-code` + `send-lands` **8/8**
+  (2.4 min); firefox + webkit storage projects **54/54** (3.0 min) — a first
+  attempt of that re-run lost the preview at 4.4 min because `pnpm check`
+  and vitest were running beside it, which is the 026/027/028 lesson
+  measured a fourth time: nothing else runs while the preview does.
+- New e2e: `token-doors.e2e.ts` (+4: 转账 / 收款 from the asset column, the
+  filter's shortcut, the phone token sheet's 转账), `receive-code.e2e.ts`
+  (+1: twelve rows, the tapped chain's title, the PNG download),
+  `send-lands.e2e.ts` (Max's `1.4…` fill and a fee figure before Continue,
+  inside the existing walk).

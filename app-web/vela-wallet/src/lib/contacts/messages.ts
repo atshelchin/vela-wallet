@@ -99,7 +99,6 @@ export interface ContactsMessages {
 		navExplore: string;
 		navSettings: string;
 		networksTitle: string;
-		commandBarPlaceholder: string;
 		allNetworks: string;
 		close: string;
 	};
@@ -180,7 +179,6 @@ export const CONTACTS_KEYS = [
 	'componentsUi.mainNav.explore',
 	'componentsUi.mainNav.settings',
 	'settingsModals.network.modalTitle',
-	'componentsUi.commandBar.placeholder',
 	'componentsUi.networkFilter.allNetworks',
 	'componentsUi.identiconViewer.close'
 ] as const;

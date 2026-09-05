@@ -33,6 +33,7 @@
 	import { MediaQuery, SvelteMap } from 'svelte/reactivity';
 	import SettingsDesktop from '$lib/settings/SettingsDesktop.svelte';
 	import SettingsHome from '$lib/settings/SettingsHome.svelte';
+	import IdenticonViewerHost from '$lib/wallet/ui/IdenticonViewerHost.svelte';
 	import { desktopWithIdentity, homeWithIdentity } from '$lib/settings/identity';
 	import { BREAKPOINT_DESKTOP } from '$lib/tokens/tokens';
 	import { session } from '$lib/session/core/session.svelte';
@@ -43,6 +44,7 @@
 		withLiveAccountsDesktop,
 		withLiveConnections,
 		withLiveCurrency,
+		withLiveCurrencyDesktop,
 		withLiveNetworks,
 		withLiveNetworksDesktop,
 		withLiveStorage
@@ -63,6 +65,7 @@
 		withLivePreferencesDesktop
 	} from '$lib/settings/live';
 	import { preferences } from '$lib/services/preferences.svelte';
+	import { loadCurrencyCodes } from '$lib/settings/core/currency-catalog';
 	import { SUPPORTED_LOCALES, type Locale } from '$lib/i18n/locales';
 	import { eraseDeviceData } from '$lib/services/erase-device';
 	import type { SettingsPrefEvent } from '$lib/settings/pref-events';
@@ -72,9 +75,6 @@
 	import { shortenAddress, type WalletIdentity } from '$lib/wallet/identity';
 	import { WEB_DESTINATIONS } from '$lib/wallet/destinations';
 	import { balance } from '$lib/wallet/core/balance.svelte';
-	import { chainFilter } from '$lib/wallet/chain-filter.svelte';
-	import { liveChainRows } from '$lib/wallet/live';
-	import type { ChainRowModel } from '$lib/wallet/model';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -116,16 +116,12 @@
 						addressDisplay: shortenAddress(identity.address),
 						addressFull: identity.address,
 						identiconSvg: identity.identiconSvg
-					},
-					networks: liveChainRows(balance.view, data.allNetworksLabel, chainFilter.chainId)
+					}
+					// No network list: it is the wallet's filter (spec 028 Phase 9,
+					// RULING 2), and a click that left this page for the wallet was a
+					// surprise beside rows that stay.
 				}
 	);
-
-	/** The filter is the wallet's to show: choose a network here, land there. */
-	function pickChain(row: ChainRowModel) {
-		chainFilter.select(row.chainId ?? null);
-		void goto(walletHref);
-	}
 
 	$effect(() => {
 		if (identity !== null) void balance.setAccount(identity.address);
@@ -151,7 +147,15 @@
 		preferences.boot();
 		void refreshGrants();
 		void refreshStorage();
+		void loadCurrencyCodes().then((codes) => (currencyCodes = codes));
 	});
+
+	/**
+	 * What the currency sheet offers (spec 028 Phase 9, T491): the rate
+	 * sources' coverage, once they have answered; the drawn eight until then.
+	 */
+	let currencyCodes = $state<string[]>([]);
+	const currencyCatalog = $derived({ codes: currencyCodes, locale: data.locale });
 
 	// --- Preferences (spec 028 T431–T434) -------------------------------------
 	//
@@ -208,6 +212,11 @@
 				return;
 			case 'time-format':
 				preferences.setTimeFormat(event.id as 'auto');
+				return;
+			case 'currency':
+				// The one preference with a core behind it: the committed pair
+				// reaches every money surface through `display_currency`.
+				currency.choose(event.id);
 				return;
 			case 'erase':
 				void erase();
@@ -323,7 +332,7 @@
 		let model = withLiveAccounts(homeWithIdentity(data.home, identity), accountsInput, m);
 		model = withLiveNetworks(model, net, m, selectedNetworkId);
 		if (storageReport !== null) model = withLiveStorage(model, storageReport, m);
-		model = withLiveCurrency(model, currency.view);
+		model = withLiveCurrency(model, currency.view, currencyCatalog);
 		// After the storage numbers: the connections row is the grants', not a key count.
 		model = withLiveConnections(model, grants, m);
 		model = withLivePreferences(model, m, languageValue, data.locale);
@@ -338,6 +347,10 @@
 		);
 		model = withLiveNetworksDesktop(model, net, m, selectedNetworkId);
 		if (storageReport !== null) model = withLiveStorage(model, storageReport, m);
+		// After the storage numbers, as on the phone: the connections row is the
+		// grants', not the drawn "4 sites" (spec 028 Phase 9, T485).
+		model = withLiveConnections(model, grants, m);
+		model = withLiveCurrencyDesktop(model, currency.view, currencyCatalog);
 		return withLivePreferencesDesktop(model, m, languageValue, data.locale);
 	});
 
@@ -471,7 +484,6 @@
 				onsignout={signOut}
 				onnetevent={onNetEvent}
 				onprefevent={onPrefEvent}
-				onchainselect={pickChain}
 				onaccountselect={selectAccount}
 				onaccountcreate={() => void goto(createHref)}
 				onaccountsignin={() => void goto(welcome)}
@@ -503,6 +515,8 @@
 	<!-- The core has not ruled yet. An empty surface, not a fixture account. -->
 	<div class="waiting" aria-busy="true"></div>
 {/if}
+
+<IdenticonViewerHost copy={data.identiconViewer} />
 
 <style>
 	/* The phone screens are `height: 100%` of whatever holds them, and the

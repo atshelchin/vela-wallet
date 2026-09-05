@@ -39,9 +39,18 @@
 			{#each model.breakdown as item (item.label)}
 				<li>
 					{#if item.lead !== undefined}
-						<TokenIcon ticker={item.lead.ticker} badgeColor={item.lead.badgeColor} size="inline" />
+						<TokenIcon
+							ticker={item.lead.ticker}
+							badgeColor={item.lead.badgeColor}
+							logoUrls={item.lead.logoUrls}
+							badgeLogoUrl={item.lead.badgeLogoUrl}
+							badgeHidden={item.lead.badgeHidden}
+							size="inline"
+						/>
 					{:else if item.identiconSvg !== undefined}
-						<span class="mark"><Identicon svg={item.identiconSvg} size="row" /></span>
+						<span class="mark"
+							><Identicon svg={item.identiconSvg} size="row" address={item.address} /></span
+						>
 					{/if}
 					<span class="label">{item.label}</span>
 					<span class="value">{item.value}</span>

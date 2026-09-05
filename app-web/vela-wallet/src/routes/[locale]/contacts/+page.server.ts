@@ -1,5 +1,9 @@
 import { error } from '@sveltejs/kit';
-import { resolveContactsMessages, resolveWalletMessages } from '$lib/i18n/engine.server';
+import {
+	resolveContactsMessages,
+	resolveSettingsMessages,
+	resolveWalletMessages
+} from '$lib/i18n/engine.server';
 import { SUPPORTED_LOCALES, toLocale } from '$lib/i18n/locales';
 import { webNavItems } from '$lib/wallet/destinations';
 import { buildDesktopState as buildWalletDesktopState } from '$lib/wallet/fixtures';
@@ -28,6 +32,9 @@ export const load: PageServerLoad = ({ params }) => {
 	const sidebar = {
 		...wallet.sidebar,
 		header: EMPTY_HEADER,
+		// The network list is the wallet's filter (spec 028 Phase 9, RULING 2);
+		// on this route there is nothing for it to filter.
+		networks: [],
 		nav: webNavItems(wallet.sidebar.nav).map((item) => ({
 			...item,
 			selected: item.id === 'contacts'
@@ -39,6 +46,10 @@ export const load: PageServerLoad = ({ params }) => {
 		contactsMessages: resolveContactsMessages(locale),
 		sidebar,
 		/** 全部 in the sidebar's network list, which the live rows rebuild. */
-		allNetworksLabel: walletMessages.networkFilter.allNetworks
+		allNetworksLabel: walletMessages.networkFilter.allNetworks,
+		/** The identicon viewer every artwork on this route opens. */
+		identiconViewer: walletMessages.identiconViewer,
+		/** The account switcher behind the sidebar header's name. */
+		accountsMessages: resolveSettingsMessages(locale).accounts
 	};
 };

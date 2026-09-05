@@ -35,6 +35,9 @@ export const load: PageServerLoad = ({ params }) => {
 	const sidebar = {
 		...wallet.sidebar,
 		header: EMPTY_HEADER,
+		// The network list is the wallet's filter (spec 028 Phase 9, RULING 2);
+		// on this route there is nothing for it to filter.
+		networks: [],
 		// Three rows, not the board's four: the web has no 探索 (spec 022).
 		nav: webNavItems(wallet.sidebar.nav).map((item) => ({
 			...item,
@@ -56,6 +59,8 @@ export const load: PageServerLoad = ({ params }) => {
 		},
 		sidebar,
 		/** 全部 in the sidebar's network list, which the live rows rebuild. */
-		allNetworksLabel: walletMessages.networkFilter.allNetworks
+		allNetworksLabel: walletMessages.networkFilter.allNetworks,
+		/** The identicon viewer every artwork on this route opens. */
+		identiconViewer: walletMessages.identiconViewer
 	};
 };

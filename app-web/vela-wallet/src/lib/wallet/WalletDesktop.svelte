@@ -14,9 +14,8 @@
 		model: WalletDesktopModel;
 		/** Sidebar navigation. Absent in the gallery, where the rail is a picture. */
 		onnav?: (id: 'wallet' | 'contacts' | 'explore' | 'settings') => void;
-		/** Open the identicon viewer; absent in the gallery. */
-		onidenticon?: () => void;
-		identiconViewerLabel?: string;
+		/** The sidebar header's name button: the account switcher. Absent in the gallery. */
+		onaccounts?: () => void;
 		/** Spec 025: tap-to-hide. The core owns `hidden`; this only reports the tap. */
 		onbalancetoggle?: () => void;
 		/** The balance status line was tapped (spec 028 Phase 8): the rescue for what it says. */
@@ -27,7 +26,11 @@
 		 * this component stops drawing its own spec-015 panels — two things
 		 * cannot occupy one column.
 		 */
-		onflow?: (entry: 'receive' | 'send' | 'scan' | 'activity' | 'add-token' | 'tx-detail') => void;
+		onflow?: (
+			entry: 'receive' | 'receive-token' | 'send' | 'scan' | 'activity' | 'add-token' | 'tx-detail',
+			/** The asset column's two doors name the token they are about (RULING 3). */
+			detail?: { assetId?: string }
+		) => void;
 		/** The sidebar's network filter was used. Absent in the gallery. */
 		onchainselect?: (row: WalletDesktopModel['sidebar']['networks'][number]) => void;
 		/**
@@ -46,8 +49,7 @@
 	let {
 		model,
 		onnav,
-		onidenticon,
-		identiconViewerLabel,
+		onaccounts,
 		onflow,
 		onbalancetoggle,
 		onchainselect,
@@ -69,13 +71,7 @@
 </script>
 
 <div class="desktop">
-	<Sidebar
-		sidebar={model.sidebar}
-		{onnav}
-		{onidenticon}
-		identiconLabel={identiconViewerLabel}
-		{onchainselect}
-	/>
+	<Sidebar sidebar={model.sidebar} {onnav} {onaccounts} {onchainselect} />
 
 	<main>
 		<div class="content">
@@ -148,8 +144,8 @@
 		>
 			<AssetDetailPanel
 				panel={model.panels.assetDetail}
-				onsend={() => onflow?.('send')}
-				onreceive={() => onflow?.('receive')}
+				onsend={() => onflow?.('send', { assetId: model.panels.assetDetail.id })}
+				onreceive={() => onflow?.('receive-token', { assetId: model.panels.assetDetail.id })}
 			/>
 		</ThirdPanel>
 	{:else if onflow !== undefined}

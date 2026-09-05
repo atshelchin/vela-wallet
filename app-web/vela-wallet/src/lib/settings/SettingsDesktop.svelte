@@ -123,7 +123,9 @@
 
 <div class="desktop">
 	{#if sidebar !== undefined}
-		<Sidebar {sidebar} {onnav} {onchainselect} />
+		<!-- The header's name button opens the switcher, which on this screen IS
+		     the account page. -->
+		<Sidebar {sidebar} {onnav} {onchainselect} onaccounts={() => (page = 'account')} />
 	{/if}
 
 	<SettingsNavList

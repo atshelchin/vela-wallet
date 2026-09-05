@@ -50,18 +50,17 @@
 	import { pickTextFile, saveTextFile } from '$lib/services/file-io';
 	import { preferences } from '$lib/services/preferences.svelte';
 	import { session } from '$lib/session/core/session.svelte';
+	import AccountSwitcher from '$lib/session/ui/AccountSwitcher.svelte';
+	import IdenticonViewerHost from '$lib/wallet/ui/IdenticonViewerHost.svelte';
 	import Dialog from '$lib/settings/ui/Dialog.svelte';
 	import { BREAKPOINT_DESKTOP } from '$lib/tokens/tokens';
 	import Button from '$lib/ui/Button.svelte';
-	import { chainFilter } from '$lib/wallet/chain-filter.svelte';
 	import { balance } from '$lib/wallet/core/balance.svelte';
 	import { feed } from '$lib/wallet/core/feed.svelte';
 	import { WEB_DESTINATIONS } from '$lib/wallet/destinations';
 	import { avatarSvgForClient } from '$lib/wallet/identicon';
 	import { shortenAddress } from '$lib/wallet/identity';
-	import { liveChainRows } from '$lib/wallet/live';
 	import { fill } from '$lib/wallet/messages';
-	import type { ChainRowModel } from '$lib/wallet/model';
 	import { encodeQr } from '$lib/wallet/qr';
 	import type { PageProps } from './$types';
 
@@ -70,6 +69,10 @@
 
 	const welcome = $derived(resolve('/[locale]', { locale: data.locale }));
 	const walletHref = $derived(resolve('/[locale]/wallet', { locale: data.locale }));
+	const createHref = $derived(resolve('/[locale]/create', { locale: data.locale }));
+
+	/** The account switcher behind the sidebar header's name (founder call, 2026-09-05). */
+	let switching = $state(false);
 	const settingsHref = $derived(resolve('/[locale]/settings', { locale: data.locale }));
 
 	const sessionView = $derived(session.view);
@@ -211,8 +214,9 @@
 
 	/**
 	 * The wide layout's app sidebar: the session's identity over the empty
-	 * header, and the wallet's own network rows from the balance resident —
-	 * the same list /wallet and /settings draw, never the board's counts.
+	 * header. No network list — that is the wallet's filter (spec 028 Phase 9,
+	 * RULING 2), and a filter with nothing to filter is noise wearing a
+	 * checkmark.
 	 */
 	const sidebar = $derived.by(() => {
 		if (!signedIn) return data.sidebar;
@@ -224,8 +228,7 @@
 				addressDisplay: shortenAddress(sessionView.address),
 				addressFull: sessionView.address,
 				identiconSvg: avatarSvgForClient(sessionView.address, name)
-			},
-			networks: liveChainRows(balance.view, data.allNetworksLabel, chainFilter.chainId)
+			}
 		};
 	});
 
@@ -254,12 +257,6 @@
 			code: encodeQr(contact.address)
 		};
 	});
-
-	/** The filter is the wallet's to show: choose a network here, land there. */
-	function pickChain(row: ChainRowModel): void {
-		chainFilter.select(row.chainId ?? null);
-		void goto(walletHref);
-	}
 
 	// --- Files in and out --------------------------------------------------
 
@@ -649,7 +646,7 @@
 			<ContactsDesktop
 				model={desktopModel}
 				onuievent={onUiEvent}
-				onchainselect={pickChain}
+				onaccounts={() => (switching = true)}
 				contactForm={sheet.kind === 'add' || sheet.kind === 'edit'
 					? {
 							copy: contactCopy(sheet.kind),
@@ -800,6 +797,18 @@
 {:else}
 	<!-- The cores have not ruled yet. An empty surface, not a fixture book. -->
 	<div class="waiting" aria-busy="true"></div>
+{/if}
+
+<IdenticonViewerHost copy={data.identiconViewer} />
+
+{#if switching && signedIn}
+	<AccountSwitcher
+		copy={{ accounts: data.accountsMessages, close: data.identiconViewer.close }}
+		wide={wide.current}
+		oncreate={() => void goto(createHref)}
+		onsignin={() => void goto(welcome)}
+		onclose={() => (switching = false)}
+	/>
 {/if}
 
 <style>

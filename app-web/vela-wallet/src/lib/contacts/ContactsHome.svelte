@@ -144,7 +144,12 @@
 				]}
 			/>
 			<div class="hero">
-				<Identicon svg={detail.contact.identiconSvg} size="hero" label={detail.contact.name} />
+				<Identicon
+					svg={detail.contact.identiconSvg}
+					size="hero"
+					label={detail.contact.name}
+					address={detail.contact.addressFull}
+				/>
 				<p class="hero-name">{detail.contact.name}</p>
 				<p class="hero-address">{detail.contact.addressDisplay}</p>
 				<GroupChips

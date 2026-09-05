@@ -42,7 +42,13 @@
 
 	{#if model.network !== undefined}
 		<button type="button" class="network" onclick={onnetwork}>
-			<TokenIcon ticker={model.network.mark.ticker} badgeColor={model.network.mark.badgeColor} />
+			<TokenIcon
+				ticker={model.network.mark.ticker}
+				badgeColor={model.network.mark.badgeColor}
+				logoUrls={model.network.mark.logoUrls}
+				badgeLogoUrl={model.network.mark.badgeLogoUrl}
+				badgeHidden={model.network.mark.badgeHidden}
+			/>
 			<span class="network-name">{model.network.name}</span>
 			<Icon icon={UTILITY_ICONS['chevron-down']} size="md" label={model.network.pickLabel} />
 		</button>
@@ -62,7 +68,13 @@
 		<p class="note">{model.result.text}</p>
 	{:else if model.result.kind === 'token'}
 		<div class="card">
-			<TokenIcon ticker={model.result.mark.ticker} badgeColor={model.result.mark.badgeColor} />
+			<TokenIcon
+				ticker={model.result.mark.ticker}
+				badgeColor={model.result.mark.badgeColor}
+				logoUrls={model.result.mark.logoUrls}
+				badgeLogoUrl={model.result.mark.badgeLogoUrl}
+				badgeHidden={model.result.mark.badgeHidden}
+			/>
 			<span class="text">
 				<span class="name">{model.result.name}</span>
 				<span class="detail">{model.result.detail}</span>
@@ -72,7 +84,13 @@
 	{:else if model.result.kind === 'network'}
 		<div class="card column">
 			<div class="card-head">
-				<TokenIcon ticker={model.result.mark.ticker} badgeColor={model.result.mark.badgeColor} />
+				<TokenIcon
+					ticker={model.result.mark.ticker}
+					badgeColor={model.result.mark.badgeColor}
+					logoUrls={model.result.mark.logoUrls}
+					badgeLogoUrl={model.result.mark.badgeLogoUrl}
+					badgeHidden={model.result.mark.badgeHidden}
+				/>
 				<span class="name">{model.result.name}</span>
 				<StatusChip chip={model.result.chip} />
 			</div>

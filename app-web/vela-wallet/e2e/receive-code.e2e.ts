@@ -13,6 +13,7 @@
  */
 import jsQR from 'jsqr';
 import { expect, test } from '@playwright/test';
+import { CHAINS } from '../src/lib/services/chains';
 import { TEST_ACCOUNT_ADDRESS, en, seedSignedIn } from './live-helpers';
 import { denyOffOrigin } from './stub-chain';
 
@@ -74,4 +75,43 @@ test('the code on the receive screen decodes to this wallet’s address', async 
 	expect(decoded, 'the rendered code must BE the address, not resemble one').toBe(
 		TEST_ACCOUNT_ADDRESS
 	);
+});
+
+/**
+ * The list is the wallet's, and the code is the tapped network's (spec 028
+ * Phase 9, T481/T482): twelve rows, twelve in the subtitle, and the second
+ * row's code is titled for the second chain — not "Ethereum" whatever was
+ * tapped. 保存图片 hands over a PNG named for the address.
+ */
+test('every network is listed, the tapped one is the code’s, and the image saves', async ({
+	page
+}) => {
+	await seedSignedIn(page);
+	await denyOffOrigin(page);
+	await page.goto('/en/wallet');
+	await expect(page.getByText('E2E Wallet').first()).toBeVisible();
+	await page
+		.getByRole('button', { name: en('componentsUi.dock.receive') })
+		.first()
+		.click();
+
+	const showCode = page.getByRole('button', { name: en('componentsUi.scanner.title') });
+	await expect(showCode.first()).toBeVisible({ timeout: 20_000 });
+	const rows = await showCode.count();
+	expect(rows, 'one row per network the wallet knows').toBe(CHAINS.length);
+	await expect(page.getByText(String(rows)).first()).toBeVisible();
+
+	// The second network's code: its name in the title, not the first's.
+	await showCode.nth(1).click();
+	const sheet = page.getByRole('dialog');
+	await expect(sheet.getByText(CHAINS[1]!.displayName, { exact: false }).first()).toBeVisible({
+		timeout: 20_000
+	});
+	await expect(sheet.getByText(CHAINS[0]!.displayName, { exact: true })).toHaveCount(0);
+
+	const [download] = await Promise.all([
+		page.waitForEvent('download'),
+		sheet.getByRole('button', { name: en('receive.request.saveImage') }).click()
+	]);
+	expect(download.suggestedFilename()).toMatch(/^vela-0x.*\.png$/);
 });

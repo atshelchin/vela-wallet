@@ -211,3 +211,172 @@ last.
 Phases 1–3 close the only item on this list that is a trap rather than a gap: a
 receive code that scans, and a scanner that reads. Everything after is a
 capability the wallet claims and does not yet perform.
+
+## Phase 9: The founder's second pass (2026-09-05) — plan, for ruling
+
+The founder walked the web app after Phase 8 and came back with two lists.
+The first (header account switcher, the identicon viewer from EVERY artwork,
+no ⌘K bar, one quiet focus rule for text entry, the prompt cards' missing
+width token) is done — batch 9a, on this branch. The second is below, verified against the
+code, grouped by what a person hits first. Every root cause here was read off
+the source, not guessed; three items need a design ruling and are marked
+**RULING**.
+
+### What was found (root causes)
+
+| # | Symptom the founder saw | Root cause in the code |
+|---|---|---|
+| a | 收款 list: "同一地址，通用于全部 8 个网络" while 12 networks are listed | `liveReceiveList` replaces the rows and keeps the fixture `subtitle` (`NETWORK_COUNT = 8`) |
+| b | 收款 list ignores the sidebar network filter | `liveReceiveList` never reads `inputs.chainFilter` |
+| c | QR screen: title always "接收 Ethereum 上的资产", centre always ETH, whichever row's QR was tapped | `go('receive-qr', i)` drops `i` at the page (`onnavigate` only keeps an index for `tx-detail`); `liveReceiveQr` uses the fixture title and `centre` — its own comment records the gap |
+| d | Network logos in 收款 rows / QR centre / send token card / fee row / send picker / token detail are letter glyphs, while the sidebar and asset rows draw real logos | `TokenMarkModel` and `NetworkRowModel` carry `ticker + badgeColor` only; `logoUrls` / `badgeLogoUrl` exist on `AssetRowModel` alone (`balanceTokenLogoURLs`, `chainLogoURL`) |
+| e | 保存图片 / 在区块浏览器查看 on the QR screen do nothing | `ReceiveQr` takes `onsave` / `onexplorer`; neither host (`FlowsMobile`, `FlowsPanel`) passes them; no rasteriser exists in app-web (`share-card.ts` composes the model, nothing draws it to pixels) |
+| f | Copy shows the tick but copies nothing (收款 rows, QR address, QR contract, token facts) | `copy()` in `ReceiveList` / `ReceiveQr` / `TokenDetail` only flips the icon; the five surfaces that really write are `IdenticonViewer`, `DoneScreen`, `AddressStrip`, the contacts page and the wallet page |
+| g | Token detail (phone): 在浏览器中查看 dead; contract not copyable; (desktop) same button has no `onclick` | `TokenDetail` takes `onexplorer`, no host passes it; `AssetDetailPanel`'s explorer button has no handler; `explorerAddressURL` exists in `services/networks.ts` and is unused here |
+| h | Token detail (phone) shows the wrong token | `withLiveFlow` has no `token-detail` case: the phone's T2 sheet is the drawn fixture, and `onnavigate('token-detail', i)` drops `i`. The desktop is live (`liveAssetDetail`) |
+| i | Token detail → 转账 asks to pick a token again | `AssetDetailPanel.onsend` → `onflow('send')` → `openSend()` with no prefill; the core already accepts `preselected_symbol` + `preselected_network` (`send.rs:1819`) |
+| j | Token detail → 收款 asks to pick a network; QR shows no token mark | Same entry path → `r1`/`dr1`; R3 (asset QR: contract line, token centre, `qrTitleAsset`) exists as a drawn state and is never entered live |
+| k | Send form title "发送 USDT" over an ETH card (desktop) | `withLiveDesktopFlow` re-derives `body` and keeps the fixture `title`; the phone's `FlowScreen` reads the live `header.title`, the desktop `ThirdPanel` reads `model.title` |
+| l | 最大 does nothing | `SendForm.onmax` is passed by no host; the core's `tap_max` (→ `MaxEstimate` pipeline) is never dispatched |
+| m | 网络费 shows "—" and the fee-coin picker cannot choose | The core asks `estimate_fee` on Continue (and on a sweep's warm-up), not while the form is being filled; `feeRow` shows `send.fee ?? fee.fee` = nothing, and `liveFeeTokenPick` has no `fee.options` to list. Expo estimated on the form (debounced) |
+| n | Hero total "$1.575.55" under the `1.234.567,89` preset | `moneyParts` groups by the preset but `BalanceDisplay` joins integer and decimals with a literal `.` (lines 38/43); `moneyText` (rows) uses `numberSeparators().decimal` and is right |
+| o | 货币 cannot be switched (desktop) | `SettingsDesktop`'s localization dropdown emits `{ kind: 'currency' }` which `onPrefEvent` has no case for; `withLiveCurrency` (value + selected row) is applied to the phone model only |
+| p | Is the fiat rate wired? | Yes: `resolveRate` = Chainlink fiat feeds (ENS-addressed, mainnet multicall) → the configured endpoint (`vela-currency` Frankfurter, `fiat-fx`) → `null` (formats in USD, refuses conversion). What is NOT wired: the selectable list is the fixture `CURRENCIES` (8 codes), not the endpoint's coverage |
+| q | Is device storage real? | Headline, bar, user-data rows and cache rows are measured (`measureDeviceStorage`, on entry and after every clear). The dApp row on the DESKTOP is the drawn "4 个站点": `withLiveConnections` is applied to the phone model only. 浏览记录 is a phone-only concept (the web has no in-app browser) and reads 0 honestly. Latency figures and the RPC-provider health are still canon data |
+| r | Sidebar network click on 通讯录 / 设置 jumps to the wallet | By construction: `pickChain` on both routes selects, then `goto(walletHref)` ("the filter is the wallet's to show: choose a network here, land there"). The founder questions it — **RULING** |
+| s | Desktop prompt cards spanned the window | `--layout-promptCard` was never declared (spec 019 recorded declaring it) — FIXED in 9a, 440px |
+
+### RULING 1 — the receive list and the sidebar filter (b, a)
+
+Recommendation: **the filter answers the list's only question, so skip the
+list.** With a network selected in the sidebar, 收款 opens the QR for that
+network directly (R2/DR2L: "接收 BNB Chain 上的资产", that chain's logo in the
+centre), with one link back to "全部网络" (R1). With 所有网络 selected, R1 lists
+every network the wallet knows — 12 today, the count live in the subtitle —
+never a fixture 8. Not recommended: R1 filtered to one row (a list of one), or
+R1 with the filtered row pinned on top (two ways of choosing the same thing on
+one screen). The address is the same on every network; R1 exists only to pick
+a network, and the filter already did.
+
+### RULING 2 — the network list on 通讯录 / 设置 (r)
+
+Recommendation: **the network list is a wallet filter, so it is drawn only on
+the wallet.** On 通讯录 and 设置 the sidebar carries the header and the three
+nav rows and stops. Reasons: (1) a click that leaves the page you are on is a
+surprise, and every other row in that sidebar stays; (2) a filter that changes
+nothing on the current page is noise wearing a checkmark; (3) the wallet's
+filter is one tap away through 钱包 anyway. If a context cue is wanted, one
+line under the nav — "网络 · BNB Chain" — linking to the wallet is enough.
+Alternative kept for the record: keep the list, make it a pure filter (no
+navigation), accept the checkmark-that-does-nothing.
+
+### RULING 3 — token detail's two doors (i, j)
+
+Recommendation, as the founder framed it: 转账 from a token opens the form with
+that token chosen (the core's `preselected_symbol` + `preselected_network`;
+back goes to the picker, not out); 收款 from a token opens R3 for that token's
+chain — contract line, the token's logo in the centre, `qrTitleAsset` — and the
+saved image carries the same mark and network note. No network picker on
+either door: the token already names its chain.
+
+### Tasks (order = what a person hits first)
+
+**9b — Truth first: figures and titles that lie**
+
+- [X] T480 [n] `BalanceDisplay` joins integer and decimals with the preset's
+      decimal mark (carry `decimalSeparator` on `BalanceModel`, from
+      `numberSeparators()`); unit test under all five presets; the hidden
+      state untouched
+- [X] T481 [a,b] `liveReceiveList`: subtitle from `receive.networksLine` with
+      the LIVE count; rows follow RULING 1 (filter → straight to R2, `chainId`
+      rides the flow entry); e2e: 12 rows with 所有网络, one QR with a filter
+- [X] T482 [c] The tapped network rides `onnavigate('receive-qr', i)` like
+      `tx-detail` does (`selectedReceiveChainId`); `liveReceiveQr` fills the
+      title (`qrTitleNetwork` / `qrTitleAsset`), the centre mark and the
+      explorer target from it; e2e decodes the code and reads the title
+- [X] T483 [h] The phone's token detail goes live: `liveTokenDetail` (the
+      desktop's `liveAssetDetail` facts, the T2 shape) + the tapped index
+      rides `onnavigate('token-detail', i)`; unit test on the mapping
+- [X] T484 [k] `withLiveDesktopFlow` re-derives `title` for the send stages
+      (`send.sendTitle` with the symbol; the picker / multi titles likewise);
+      unit test
+- [X] T485 [q] `withLiveConnections` on the desktop model too; hide 浏览记录
+      on the web (no browser to have a history) — one `webOnly` filter in
+      `withLiveStorage`, not a fixture edit; unit test
+
+**9c — Dead controls**
+
+- [X] T486 [f] One `services/clipboard.ts` (`copyText`, refused-clipboard
+      returns false; the on-screen address is the fallback) used by
+      `ReceiveList`, `ReceiveQr` (address + contract), `TokenDetail` facts,
+      `AssetDetailPanel` (contract fact gains the copy affordance the phone
+      has), `TxDetail`; browser test on the tick + a `navigator.clipboard`
+      stub
+- [X] T487 [g,e] Explorer: `onexplorer` wired in both hosts —
+      `explorerAddressURL(chainId, account)` for the QR, the token page
+      (`/token/<contract>?a=<account>`) for a token, `explorerTxURL` already
+      live for a tx; opens a new tab; `AssetDetailPanel` gets the handler
+- [X] T488 [e] 保存图片: rasterise the R4 share card (`share-card.ts` model →
+      inline SVG → canvas → PNG blob; `file-io.saveBlob` beside
+      `saveTextFile`; the extension's download is the same call). Carries
+      the token mark and network note per RULING 3; e2e downloads and
+      decodes the PNG's code
+- [X] T489 [l] 最大: hosts pass `onmax`, `sendActions.max` dispatches
+      `tap_max`; the core's `MaxEstimate` fills the amount fee-aware; e2e on
+      the stubbed chain (native max = balance − fee, ERC-20 max = balance)
+- [X] T490 [m] The fee on the form: the core requests `estimate_fee` once the
+      form is complete (recipient valid + amount > 0), throttled and
+      chain-guarded (`selectedFeeEstimate`), so the row shows a figure and
+      the fee-coin picker has options before Continue — a `send.rs` change
+      with vectors (the rule is the core's), wasm rebuilt; e2e: the row is
+      never "—" with a stub bundler answering
+- [X] T491 [o,p] 货币 on the desktop: `SettingsPrefEvent` gains
+      `{ kind: 'currency'; id }` → `currency.choose`; `withLiveCurrency`'s
+      desktop twin; the list from the endpoint's coverage (`fetchFxRates`
+      keys ∪ Chainlink feeds, cached, the fixture 8 as the offline floor)
+      on both widths, per the 024 intent ("provider-driven currency list");
+      e2e switches to EUR on the desktop and reads the hero glyph
+
+**9d — Logos, once**
+
+- [X] T492 [d] `TokenMarkModel` gains optional `logoUrls` / `badgeLogoUrl` /
+      `badgeHidden` (the `AssetRowModel` triple); `TokenIcon` already draws
+      them. Filled by the live builders in one pass: send picker rows, the
+      send token card, the fee row and fee options, receive rows (chain
+      logo), the QR centre (token or chain), token detail head, the share
+      card. Browser test: a mark with a logo draws `<img>`, without one the
+      glyph — the TokenIcon contract already proven
+
+**9e — The two doors and the filter (RULINGS 1–3)**
+
+- [X] T493 [i] Token → 转账: `onflow('send', { symbol, chainId })` →
+      `openSend({ preselected_symbol, preselected_network })`; verify the
+      core lands on `enter_details` (send.rs:1819) and that back returns to
+      the picker; e2e from the asset detail on both widths
+- [X] T494 [j] Token → 收款: `onflow('receive', { symbol, chainId })` enters
+      R3/DR3L directly (contract line, token centre, `qrTitleAsset`); the
+      save image carries the mark; e2e
+- [X] T495 [b] Filter → 收款 enters R2 for the filtered chain (RULING 1); the
+      "全部网络" link back to R1; e2e
+- [X] T496 [r] RULING 2: `Sidebar` takes `networks?`; the contacts and
+      settings routes stop building `liveChainRows` and pass none; the
+      `pickChain` navigation goes with it; gallery boards for DC1/DST1
+      re-exported without the list; e2e: no network rows on /contacts,
+      /settings
+
+**9f — The careful pass the founder asked for**
+
+- [~] T497 A walk of every drawn control on both widths against
+      `docs/MANUAL-TEST-100-CLUES.md`: each control either does what it says
+      or is removed — "有交互效果但没成功" is the class of bug this phase
+      exists to end. Findings go in results.md Phase 9 as a table (control ·
+      what it did · what it does now)
+- [X] T498 Gates: `pnpm check` · `pnpm lint` · unit · corpus (if T490 adds
+      words: none planned) · cargo `send` vectors · wasm rebuilt · e2e on the
+      isolated 4174 preview, three engines; results.md Phase 9 entry
+
+### Dependencies
+
+T492 (logos) before T482/T483/T494 land their marks; T486 (clipboard) before
+T487's surfaces; T490 (fee on the form) is a core change and can run beside
+everything else; the three RULINGS gate T481, T493–T496 and nothing else.

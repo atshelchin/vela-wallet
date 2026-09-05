@@ -131,8 +131,13 @@ export function pickTextFile(accept: string): Promise<PickedTextFile | null> {
  * share is not an error, and the core's own result variant says so.
  */
 export async function saveTextFile(name: string, contents: string, mime: string): Promise<void> {
+	await saveBlob(name, new Blob([contents], { type: mime }));
+}
+
+/** The same hand-over for bytes already in a Blob — the receive share image. */
+export async function saveBlob(name: string, blob: Blob): Promise<void> {
 	if (typeof document === 'undefined') return;
-	const url = URL.createObjectURL(new Blob([contents], { type: mime }));
+	const url = URL.createObjectURL(blob);
 	const anchor = document.createElement('a');
 	anchor.href = url;
 	anchor.download = name;

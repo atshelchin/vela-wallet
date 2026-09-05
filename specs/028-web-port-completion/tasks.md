@@ -91,18 +91,25 @@ fixed before this feature ships. It is tracked in 027's ledger.
 
 ## Phase 5: Sweep and custom tokens (one commit)
 
-- [ ] T440 [US3] `live-send.ts` uses the core's `multi_select_mode` /
-      `multi_selected_ids`: the picker's master tick, the per-asset amounts, the
-      total, the CTA gate — all the core's ruling (D51)
-- [ ] T441 [US3] Sweep confirms into ONE operation through the existing spine
-- [ ] T442 [US4] `manage_tokens` gets its screen: `go('add-token')` constructs
-      the session, the chain answers with the token's identity, the core rules
-- [ ] T443 [US4] An added token appears wherever assets are listed and survives
-      a reload
-- [ ] T444 [P] Units: sweep builder arms, add-token arms (not-a-token, already
-      known, slow chain)
-- [ ] T445 e2e `sweep.e2e.ts` (SC-404) + `add-token.e2e.ts` (SC-405)
-- [ ] T446 Full gate; results.md Phase 5 entry
+- [X] T440 [US3] `live-send.ts` uses the core's `multi_select_mode` /
+      `multi_selected_ids` / `multi_chain_id` / `multi_specs`: the picker's
+      master tick, the per-asset amounts, the total, the CTA gate — all the
+      core's ruling (D51). One shell flag (`sweepPicking`), by the phone's
+      precedent, for whether the checkboxes are showing before confirm
+- [X] T441 [US3] Sweep confirms into ONE operation through the existing spine
+      (`multi_token_specs` in Rust → the 026 MultiSend path; nothing new)
+- [X] T442 [US4] `manage_tokens` gets its screen: `go('add-token')` constructs
+      the session, the chain answers with the token's identity, the core rules.
+      The probe is implicit (the drawn sheet has one CTA); `onsheetclose` added
+      to `FlowsMobile` so a dismissed sheet pops its step
+- [X] T443 [US4] An added token appears wherever assets are listed and survives
+      a reload (`invalidate_token_cache` → `balance.refresh(true)`;
+      `vela.customTokens` in the KV)
+- [X] T444 [P] Units: sweep builder arms (19), add-token arms (9)
+- [X] T445 e2e `sweep.e2e.ts` (SC-404) + `add-token.e2e.ts` (SC-405) — the
+      multicall stub now answers PER CALL (`e2e/stub-multicall.ts`), which is
+      what two balances and a string-returning probe need
+- [X] T446 Full gate; results.md Phase 5 entry
 
 ## Phase 6: The book travels, and the desktop sends (one commit)
 

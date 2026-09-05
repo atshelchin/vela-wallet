@@ -13,6 +13,8 @@
 import type { BalanceView } from '$lib/core/generated/BalanceView';
 import type { FeedView } from '$lib/core/generated/FeedView';
 import type { CurrencyView } from '$lib/core/generated/CurrencyView';
+import type { MtokView } from '$lib/core/generated/MtokView';
+import type { WalletFlowMessages } from './messages';
 import { getAllNetworksSync, nativeSymbol } from '$lib/services/networks';
 import { chainColor } from '$lib/wallet/fixtures';
 import type { ShareCardModel } from './model';
@@ -32,6 +34,7 @@ import {
 } from './live-send';
 import type { WalletMessages } from '$lib/wallet/messages';
 import type {
+	AddTokenModel,
 	AssetsModel,
 	DesktopFlowModel,
 	FlowScreenModel,
@@ -57,6 +60,12 @@ export interface FlowsLiveInputs {
 	send?: SendLiveInputs;
 	/** The batch importer, while its sheet is open (spec 026 US3). */
 	batch?: BatchLiveInputs;
+	/**
+	 * The `manage_tokens` core's view while the add-token sheet is open (spec
+	 * 028 US4), with the flat flow corpus beside it — the same shape `batch`
+	 * rides in, because this file's own `m` is the wallet home's nested map.
+	 */
+	addToken?: AddTokenLiveInputs;
 }
 
 function liveAssets(model: AssetsModel, inputs: FlowsLiveInputs): AssetsModel {
@@ -137,6 +146,63 @@ function liveShareCard(model: ShareCardModel, inputs: FlowsLiveInputs): ShareCar
 	};
 }
 
+/**
+ * T3 — adding a token by contract address (spec 028 T442).
+ *
+ * The drawn sheet has one field, one result card and one CTA, and every state
+ * T5 draws is a variant of those. Here each is the `manage_tokens` core's
+ * projection: validity is `address_valid`, the probe is `detecting`, the card
+ * is the first chain that answered with an identity (`found`, registry order),
+ * and "added" is the core's own dedupe verdict against what is stored. The
+ * shell words it and nothing more.
+ *
+ * Two things the mock draws are not here yet, and are recorded rather than
+ * improvised: the network picker (the core probes EVERY known chain at once
+ * and the card names the one that answered, so a picker would be choosing
+ * what the core already found), and the native-token tab (that is
+ * `network_admin`'s, and it lives in Settings).
+ */
+export interface AddTokenLiveInputs {
+	view: MtokView;
+	m: WalletFlowMessages;
+}
+
+export function liveAddToken(model: AddTokenModel, inputs: AddTokenLiveInputs): AddTokenModel {
+	const { view, m } = inputs;
+	const first = view.found[0];
+	const typed = view.input_address.trim() !== '';
+	const result: AddTokenModel['result'] = view.detecting
+		? { kind: 'searching', text: m['addToken.searchingNetworks'] }
+		: first !== undefined
+			? {
+					kind: 'token',
+					mark: { ticker: first.symbol, badgeColor: chainColor(first.chain_id) },
+					name: first.name,
+					detail: `${first.symbol} · ${m['tokenDetail.labelDecimals']} ${first.decimals} · ${first.network_name}`,
+					chip: first.added ? { text: m['addToken.tokenAdded'], tone: 'success' } : undefined
+				}
+			: view.not_found
+				? {
+						kind: 'not-found',
+						text: `${m['addToken.notFoundTitle']} — ${m['addToken.notFoundMessage']}`
+					}
+				: { kind: 'none' };
+	return {
+		...model,
+		tab: 'erc20',
+		network: undefined,
+		fieldValue: view.input_address,
+		fieldError: view.save_error
+			? m['addToken.errorSaveToken']
+			: typed && !view.address_valid
+				? m['addToken.invalidAddress']
+				: undefined,
+		result,
+		cta: m['addToken.addToWalletBtn'],
+		ctaDisabled: first === undefined || first.added || view.saving
+	};
+}
+
 /** A mobile flow screen with its live bodies swapped in; others untouched. */
 export function withLiveFlow(model: FlowScreenModel, inputs: FlowsLiveInputs): FlowScreenModel {
 	let next = model;
@@ -189,6 +255,12 @@ export function withLiveFlow(model: FlowScreenModel, inputs: FlowsLiveInputs): F
 		next = {
 			...next,
 			sheet: { kind: 'batch-import', model: liveBatchImport(model.sheet.model, inputs.batch) }
+		};
+	}
+	if (inputs.addToken && model.sheet?.kind === 'add-token') {
+		next = {
+			...next,
+			sheet: { kind: 'add-token', model: liveAddToken(model.sheet.model, inputs.addToken) }
 		};
 	}
 	return next;
@@ -247,6 +319,13 @@ export function withLiveDesktopFlow(
 				? {
 						...model,
 						body: { kind: 'fee-token', model: liveFeeTokenPick(model.body.model, inputs.send) }
+					}
+				: model;
+		case 'add-token':
+			return inputs.addToken
+				? {
+						...model,
+						body: { kind: 'add-token', model: liveAddToken(model.body.model, inputs.addToken) }
 					}
 				: model;
 		default:

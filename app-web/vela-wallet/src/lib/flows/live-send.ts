@@ -42,6 +42,24 @@ export interface SendLiveInputs {
 	currency: CurrencyView;
 	identity: WalletIdentity;
 	identicon: (seed: string) => string;
+	/**
+	 * The picker is choosing SEVERAL tokens (spec 028 T440). A shell flag, on
+	 * purpose and by precedent: the core's `multi_select_mode` flips only when
+	 * the selection is CONFIRMED, and the phone keeps the same pre-confirm
+	 * flag as its chain filter (`TokenSelector.tsx: sweepActive`). Which
+	 * tokens may be picked, what "all valuable" means and what a sweep moves
+	 * are the core's; whether the checkboxes are showing is the screen's.
+	 */
+	sweepPicking?: boolean;
+}
+
+/**
+ * The core's `SendToken::id()`, byte for byte — every multi-select event names
+ * a token by this string, and a shell id that drifted from the core's would
+ * select nothing and say nothing.
+ */
+export function sendTokenId(token: SendToken): string {
+	return `${token.network}_${token.token_address ?? 'native'}_${token.symbol}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,15 +125,78 @@ function feeRow(inputs: SendLiveInputs, template: FeeRowModel): FeeRowModel {
 // The screens
 // ---------------------------------------------------------------------------
 
-/** SD1 — which token to send. The rows are the core's holdings, not a fixture's. */
+/**
+ * SD1 / SD1b — which token to send, or which several.
+ *
+ * In sweep mode every fact on the screen is the core's projection: the tick
+ * per row is `multi_selected_ids`, the greying is `multi_chain_id` (a batch
+ * is one chain, and a row on another chain stays visible but unpickable —
+ * the person still owns it), and the CTA counts the same ids the confirm
+ * will sweep. The shell narrows nothing and re-decides nothing.
+ */
 export function liveSendPick(model: SendPickModel, inputs: SendLiveInputs): SendPickModel {
-	const { send, currency } = inputs;
+	const { send, currency, m } = inputs;
+	const rows = send.tokens.map((token) => tokenRow(token, currency));
+	if (!inputs.sweepPicking) {
+		return {
+			...model,
+			header: { ...model.header, title: m['send.selectTokenTitle'] },
+			notice: undefined,
+			selection: undefined,
+			rows,
+			cta: { label: m['send.multiSendTitle'], accent: false }
+		};
+	}
+	const chain = send.multi_chain_id;
+	const picked = send.multi_selected_ids;
+	const count = picked.length;
 	return {
 		...model,
-		notice: undefined,
-		selection: undefined,
-		rows: send.tokens.map((token) => tokenRow(token, currency))
+		header: { ...model.header, title: m['send.multiSendTitle'] },
+		notice:
+			chain === null
+				? undefined
+				: {
+						mark: { ticker: nativeSymbol(chain), badgeColor: chainColor(chain) },
+						text: fill(m['send.multiSendChainNotice'], { network: chainName(chain) })
+					},
+		rows,
+		selection: {
+			selected: send.tokens.map((token) => picked.includes(sendTokenId(token))),
+			dimmed: send.tokens.map((token) => chain !== null && token.chain_id !== chain),
+			selectAll: m['send.selectAllValuable']
+		},
+		cta:
+			count > 0
+				? {
+						label: fill(m['send.multiSendContinue'], {
+							n: count,
+							chain: chain === null ? '' : chainName(chain)
+						}),
+						accent: true
+					}
+				: { label: m['send.multiSendTitle'], accent: false }
 	};
+}
+
+/** The tokens a sweep will move, in the order the picker lists them. */
+function pickedTokens(send: SendView): SendToken[] {
+	return send.tokens.filter((token) => send.multi_selected_ids.includes(sendTokenId(token)));
+}
+
+/**
+ * The amount a sweep moves for one token: the core's reserved spec when it
+ * has computed one (net of the gas the fee coin pays), else the full balance
+ * the spec will become. Both are the core's numbers and both are HUMAN
+ * decimal strings — `MultiTokenSpec.amount` is `full_balance()` less the
+ * reserve, exactly as the phone hands it to its batch builder, which is what
+ * turns it into base units. The first version of this file converted it a
+ * second time and the confirm page priced a 100 USDC sweep at $0.00; the e2e
+ * caught it. This only chooses which of the two is on screen at this instant.
+ */
+function sweepAmount(send: SendView, token: SendToken): string {
+	const spec = send.multi_specs.find((row) => row.token_address === token.token_address);
+	return spec ? spec.amount : token.balance;
 }
 
 /** SD2 — recipient and amount. */
@@ -141,6 +222,39 @@ export function liveSendForm(model: SendFormModel, inputs: SendLiveInputs): Send
 		// first-interaction note when it does not.
 		note: recipientNote(send, m)
 	};
+
+	// SD2d — the sweep: several tokens, one recipient, one operation. The
+	// rows are the core's picks and the amounts are its reserved specs.
+	if (send.multi_select_mode) {
+		const picked = pickedTokens(send);
+		const chainId = send.multi_chain_id ?? token?.chain_id ?? 1;
+		return {
+			...model,
+			mode: 'sweep',
+			header: { ...model.header, title: m['send.multiSendTitle'] },
+			token: undefined,
+			sweepSummary: fill(m['send.multiSendSummary'], {
+				n: picked.length,
+				chain: chainName(chainId)
+			}),
+			sweepRows: picked.map((row) => ({
+				mark: mark(row),
+				symbol: row.symbol,
+				balanceLabel: fill(m['send.balanceLabel'], { amount: trimBalance(row.balance) }),
+				amount: trimBalance(sweepAmount(send, row)),
+				max: m['send.maxBtn']
+			})),
+			amount: undefined,
+			addRecipient: undefined,
+			recipients: undefined,
+			recipientActions: undefined,
+			summary: undefined,
+			recipient: { ...recipientBlock, note: m['send.multiSendSameRecipient'] },
+			fee: feeRow(inputs, model.fee),
+			cta: m['send.continueBtn']
+		};
+	}
+
 	return {
 		...model,
 		mode: split ? 'split' : 'single',
@@ -244,6 +358,37 @@ export function liveSendConfirm(model: SendConfirmModel, inputs: SendLiveInputs)
 			value: feeText(send.fee ?? inputs.fee.fee)
 		}
 	];
+
+	// SD3c — the sweep's confirm: N assets, one network, one operation. Each
+	// breakdown row is a reserved spec, i.e. the exact amount the signature
+	// will move (invariant ⑪) — never a number this file summed on its own.
+	if (send.multi_select_mode) {
+		const picked = pickedTokens(send);
+		const sweepChain = send.multi_chain_id ?? chainId;
+		let totalUsd = 0;
+		const breakdown = picked.map((row) => {
+			const amount = sweepAmount(send, row);
+			const rowUsd = row.price_usd === null ? null : (parseFloat(amount) || 0) * row.price_usd;
+			if (rowUsd !== null) totalUsd += rowUsd;
+			const value = `${trimBalance(amount)} ${row.symbol}`;
+			return {
+				lead: mark(row),
+				label: row.symbol,
+				value: rowUsd === null ? value : `${value} · ≈${moneyText(rowUsd, currency)}`
+			};
+		});
+		return {
+			...model,
+			amount: fill(m['componentsTx.receipt.assetsCount'], { n: picked.length }),
+			subline: fill(m['send.confirmTotalLine'], {
+				fiat: moneyText(totalUsd, currency),
+				network: chainName(sweepChain)
+			}),
+			facts,
+			breakdown,
+			cta: m['send.confirmSendBtn']
+		};
+	}
 
 	return {
 		...model,

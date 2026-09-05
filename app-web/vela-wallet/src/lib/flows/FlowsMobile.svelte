@@ -46,9 +46,23 @@
 		removeRecipient(index: number): void;
 		pickFeeToken(index: number): void;
 		done(): void;
+		/**
+		 * The picker's two sweep affordances (spec 028 T440): the master tick,
+		 * and the CTA that either opens the multi-select or confirms it. Which
+		 * of the two the CTA is right now is the route's to say — it knows
+		 * whether the checkboxes are showing.
+		 */
+		selectAll(): void;
+		pickCta(): void;
 		/** The core's gates — `can_continue` / `can_confirm`. */
 		continueDisabled: boolean;
 		confirmDisabled: boolean;
+	}
+
+	/** The add-token sheet's handlers, when the `manage_tokens` core is live. */
+	interface AddTokenActions {
+		input(value: string): void;
+		submit(): void;
 	}
 
 	/**
@@ -80,9 +94,17 @@
 		send?: SendActions;
 		batch?: BatchActions;
 		scan?: ScanActions;
+		addToken?: AddTokenActions;
+		/**
+		 * The person dismissed the sheet (spec 028 T442). A sheet is a pushed
+		 * step on the route's stack, and a route that does not hear the
+		 * dismissal keeps the step — so the next `go()` to the same sheet is a
+		 * no-op and nothing opens. Absent in the gallery.
+		 */
+		onsheetclose?: () => void;
 	}
 
-	let { model, onback, onnavigate, send, batch, scan }: Props = $props();
+	let { model, onback, onnavigate, send, batch, scan, addToken, onsheetclose }: Props = $props();
 
 	const base = $derived(model.base);
 	const sheet = $derived(model.sheet);
@@ -140,7 +162,8 @@
 			<SendPick
 				model={base.model}
 				onselect={(i) => (send ? send.selectToken(i) : go('send-form', i))}
-				oncta={() => (send ? undefined : go('send-multi'))}
+				onselectall={send ? () => send.selectAll() : undefined}
+				oncta={() => (send ? send.pickCta() : go('send-multi'))}
 			/>
 		</FlowScreen>
 	{:else if base.kind === 'send-form'}
@@ -211,9 +234,16 @@
 				title={sheet.model.title}
 				closeLabel={sheet.model.closeLabel}
 				height="tall"
-				onclose={() => (sheetClosed = true)}
+				onclose={() => {
+					sheetClosed = true;
+					onsheetclose?.();
+				}}
 			>
-				<AddToken model={sheet.model} />
+				<AddToken
+					model={sheet.model}
+					oninput={addToken ? (value) => addToken.input(value) : undefined}
+					onsubmit={addToken ? () => addToken.submit() : undefined}
+				/>
 			</BottomSheet>
 		{:else if sheet.kind === 'contact-pick'}
 			<BottomSheet

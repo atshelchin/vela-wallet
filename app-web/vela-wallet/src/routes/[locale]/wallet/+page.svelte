@@ -51,6 +51,13 @@
 	import { withLiveDesktopFlow, withLiveFlow } from '$lib/flows/live';
 	import { createSendSession, type SendSession } from '$lib/flows/core/send-session';
 	import { createBatchImportSession, type BatchImportSession } from '$lib/flows/core/batch-session';
+	import {
+		createManageTokensSession,
+		type ManageTokensSession
+	} from '$lib/wallet/core/manage-tokens-session';
+	import type { MtokView } from '$lib/core/generated/MtokView';
+	import { getAllNetworksSync } from '$lib/services/networks';
+	import { sendTokenId } from '$lib/flows/live-send';
 	import type { BatchView } from '$lib/core/generated/BatchView';
 	import { FeeQuote, IDLE_FEE_VIEW } from '$lib/flows/core/fee-quote.svelte';
 	import { scanner, scanNotice } from '$lib/flows/core/scanner.svelte';
@@ -130,6 +137,15 @@
 	const feeQuote = new FeeQuote();
 	/** The fee-coin sheet is a shell surface: the core has no state for it. */
 	let feeSheetOpen = $state(false);
+	/**
+	 * The picker is choosing SEVERAL tokens (spec 028 T440). Shell state by
+	 * precedent — the phone's `sweepActive` is its chain filter, a shell
+	 * value too — because the core's `multi_select_mode` only flips when the
+	 * selection is CONFIRMED. Everything the flag reveals (which rows are
+	 * ticked, which are off-chain, what "all valuable" means, what the sweep
+	 * moves) is the core's.
+	 */
+	let sweepPicking = $state(false);
 
 	// --- The batch importer (spec 026 US3) ------------------------------------
 	//
@@ -199,6 +215,79 @@
 		batchView && sendView?.selected_token
 			? { batch: batchView, m: data.flowMessages, symbol: sendView.selected_token.symbol }
 			: undefined
+	);
+
+	// --- Adding a token (spec 028 US4) -------------------------------------
+	//
+	// `manage_tokens` has had an executor, a session, types and 22 Rust tests
+	// since 025, and was constructed by nothing. It is built when the sheet
+	// opens and disposed when it closes; the network snapshot rides on the
+	// probe request because the registry (defaults + custom networks) is the
+	// shell's, and a confirmed save invalidates the token cache through the
+	// core's own `invalidate_token_cache`, which is where the balance list
+	// learns to look again.
+	let addTokenView = $state<MtokView | null>(null);
+	let manageTokens: ManageTokensSession | null = null;
+
+	async function openAddToken(): Promise<void> {
+		if (manageTokens) return;
+		await loadCore();
+		if (manageTokens) return;
+		manageTokens = createManageTokensSession({
+			account: () => identity?.address ?? '',
+			onInvalidated: () => balance.refresh(true),
+			onView: (view) => (addTokenView = view),
+			onError: (error) => console.error('[manage_tokens] core fault:', error)
+		});
+		manageTokens.start({ type: 'start' });
+	}
+
+	function closeAddToken(): void {
+		manageTokens?.dispose();
+		manageTokens = null;
+		addTokenView = null;
+	}
+
+	/**
+	 * The registry as the core's `u32` can carry it — wire representability,
+	 * not policy: a row that cannot be serialised would make the probe request
+	 * throw and the field do nothing at all.
+	 */
+	function networkSnapshot(): { chain_id: number; name: string }[] {
+		return getAllNetworksSync()
+			.filter((n) => Number.isInteger(n.chainId) && n.chainId >= 0 && n.chainId <= 4_294_967_295)
+			.map((n) => ({ chain_id: n.chainId, name: n.displayName }));
+	}
+
+	const addTokenActions = $derived(
+		addTokenView === null
+			? undefined
+			: {
+					input: (value: string) => {
+						manageTokens?.dispatch({ type: 'address_input', s: value });
+					},
+					submit: () => {
+						const first = addTokenView?.found[0];
+						if (first && !first.added) {
+							manageTokens?.dispatch({ type: 'save_requested', chain_id: first.chain_id });
+						}
+					}
+				}
+	);
+
+	// The probe fires the moment the address is well-formed. The phone has a
+	// separate "search" button; the drawn sheet (T3) has one CTA, "add", so the
+	// search is implicit. The core's echo gate discards an answer for an
+	// address the person has already typed past.
+	$effect(() => {
+		const view = addTokenView;
+		if (!view || !view.address_valid || view.detecting) return;
+		if (view.found.length > 0 || view.not_found) return;
+		manageTokens?.dispatch({ type: 'detect_requested', networks: networkSnapshot() });
+	});
+
+	const addTokenInputs = $derived(
+		addTokenView ? { view: addTokenView, m: data.flowMessages } : undefined
 	);
 
 	async function openSend(prefill?: Partial<SendOpenParams>): Promise<void> {
@@ -271,6 +360,7 @@
 		sendSession = null;
 		sendView = null;
 		feeSheetOpen = false;
+		sweepPicking = false;
 		feeQuote.dispose();
 		nav.close();
 	}
@@ -287,11 +377,12 @@
 		if (batchView) return 'sd2c' as const;
 		switch (view.stage) {
 			case 'select_token':
-				return 'sd1' as const;
+				// SD1b is SD1 with checkboxes: the same list, choosing several.
+				return sweepPicking ? ('sd1b' as const) : ('sd1' as const);
 			case 'enter_details':
-				return 'sd2' as const;
+				return view.multi_select_mode ? ('sd2d' as const) : ('sd2' as const);
 			case 'confirm':
-				return 'sd3' as const;
+				return view.multi_select_mode ? ('sd3c' as const) : ('sd3' as const);
 			case 'receipt':
 				return 'sd4b' as const;
 			default:
@@ -305,12 +396,38 @@
 			: {
 					selectToken: (index: number) => {
 						const token = sendView?.tokens[index];
-						if (token) {
-							sendSession?.dispatch({
-								type: 'select_token',
-								token_id: `${token.network}_${token.token_address ?? 'native'}_${token.symbol}`
-							});
+						if (!token) return;
+						if (!sweepPicking) {
+							sendSession?.dispatch({ type: 'select_token', token_id: sendTokenId(token) });
+							return;
 						}
+						// A batch is one chain. The phone pins it with a filter; the
+						// drawn picker (SD1b) pins it with the FIRST pick, so the first
+						// tap names the network and the core refuses every other chain
+						// from then on. Emptying the selection unpins, so a person can
+						// start over without leaving the screen.
+						if (sendView?.multi_chain_id === null) {
+							sendSession?.dispatch({ type: 'set_multi_network', chain_id: token.chain_id });
+						}
+						sendSession?.dispatch({ type: 'toggle_multi_token', token_id: sendTokenId(token) });
+					},
+					selectAll: () => {
+						// The scope is what the picker is showing; what counts as
+						// valuable inside that scope stays the core's.
+						sendSession?.dispatch({
+							type: 'toggle_all_multi_tokens',
+							visible_ids: (sendView?.tokens ?? []).map(sendTokenId)
+						});
+					},
+					pickCta: () => {
+						if (!sweepPicking) {
+							sweepPicking = true;
+							return;
+						}
+						if ((sendView?.multi_selected_ids.length ?? 0) === 0) return;
+						// The core decides what this becomes: one pick is a normal
+						// send, several are a sweep, and the warm-up estimate starts.
+						sendSession?.dispatch({ type: 'confirm_multi_selection' });
 					},
 					amountChanged: (value: string) =>
 						sendSession?.dispatch({ type: 'set_amount', amount: value }),
@@ -340,6 +457,17 @@
 				}
 	);
 
+	// An emptied selection unpins the chain (see `selectToken`). The core keeps
+	// `multi_chain_id` until told otherwise, and a picker locked to a chain with
+	// nothing ticked would grey every other row for no reason a person can see.
+	$effect(() => {
+		const view = sendView;
+		if (!sweepPicking || !view || view.multi_chain_id === null) return;
+		if (view.multi_selected_ids.length === 0 && !view.multi_select_mode) {
+			sendSession?.dispatch({ type: 'set_multi_network', chain_id: null });
+		}
+	});
+
 	/** The live inputs the send overlays read, or `undefined` while none is open. */
 	const sendInputs = $derived(
 		sendView && identity
@@ -349,7 +477,8 @@
 					m: data.flowMessages,
 					currency: currency.view,
 					identity,
-					identicon: avatarSvgForClient
+					identicon: avatarSvgForClient,
+					sweepPicking
 				}
 			: undefined
 	);
@@ -622,7 +751,8 @@
 		identity: identity ?? undefined,
 		emptyCopy: data.flows.t4.base.kind === 'assets' ? data.flows.t4.base.model.empty : undefined,
 		send: sendInputs,
-		batch: batchInputs
+		batch: batchInputs,
+		addToken: addTokenInputs
 	});
 
 	/**
@@ -668,6 +798,7 @@
 			return;
 		}
 		nav.enter(entry);
+		if (entry === 'add-token') void openAddToken();
 	}
 </script>
 
@@ -716,9 +847,19 @@
 			{#if desktopFlow !== undefined && desktopFlow !== 'ds1'}
 				<FlowsPanel
 					model={withLiveDesktopFlow(data.desktopFlows[desktopFlow], flowInputs)}
-					onback={() => nav.back()}
-					onclose={() => nav.close()}
-					onnavigate={(to) => nav.push(to)}
+					onback={() => {
+						if (nav.desktopTop === 'dt3') closeAddToken();
+						nav.back();
+					}}
+					onclose={() => {
+						closeAddToken();
+						nav.close();
+					}}
+					onnavigate={(to) => {
+						nav.push(to);
+						if (to === 'add-token') void openAddToken();
+					}}
+					addToken={addTokenActions}
 				/>
 			{/if}
 		</div>

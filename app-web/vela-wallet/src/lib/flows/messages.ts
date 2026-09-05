@@ -112,6 +112,10 @@ export const WALLET_FLOW_KEYS = [
 	'addToken.addNetworkBtn',
 	'addToken.deployContracts',
 	'addToken.errorNotCompatible',
+	// The live add-token sheet (spec 028 T442): the probe in flight, and a
+	// write that failed — both existed in the corpus, neither was on a mock.
+	'addToken.searchingNetworks',
+	'addToken.errorSaveToken',
 
 	// ------------------------------------------------------------------ send
 	'send.selectTokenTitle',

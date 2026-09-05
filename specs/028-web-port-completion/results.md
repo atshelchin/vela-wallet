@@ -469,3 +469,148 @@ thirty tests reported "Could not connect to the server" at once. Killed the
 orphan, re-ran, 159/1 in 2.4 minutes. Phase 3's rule stands and now has a
 corollary: **one suite at a time, and check for orphans before believing a red
 run** — `lsof -ti tcp:4173` and `pgrep -f workerd` before, not after.
+
+---
+
+## Phase 5 — sweep and custom tokens (T440–T446)
+
+**What shipped**: the two machines that were aboard with nothing to show — the
+`send` core's multi-select half and `manage_tokens` — each got its first
+screen. Several assets on one network go out as ONE operation; a token is added
+by contract address with the identity the chain reports, and it is still there
+after a reload.
+
+### The sweep is five fields the core already carried
+
+`live-send.ts` used none of `multi_select_mode`, `multi_selected_ids`,
+`multi_chain_id`, `multi_valuable_ids`, `multi_specs`; now every fact on SD1b,
+SD2d and SD3c is one of them:
+
+| On screen | The core's field | What the shell does with it |
+| --- | --- | --- |
+| the tick per row | `multi_selected_ids` | `includes(sendTokenId(token))` |
+| the greyed rows and the notice | `multi_chain_id` | `token.chain_id !== chain` |
+| the master tick's scope | `toggle_all_multi_tokens { visible_ids }` | names what the picker is SHOWING; what counts as valuable stays `is_valuable()` |
+| the per-token amounts | `multi_specs` | `baseToHuman()` — string arithmetic, never a `Number` |
+| the CTA's count and the confirm's "N assets" | the same ids | counted, not decided |
+
+`sendTokenId()` is `SendToken::id()` byte for byte — `{network}_{address|native}_{symbol}`
+— and is pinned by a unit, because an id that drifted would select nothing and
+say nothing. `baseToHuman()` exists because a sweep's amounts are uint256 base
+units net of the gas reserve (the EXACT figures a submit moves, invariant ⑪),
+and a double on the way to the confirm page would round the number the
+signature is built from.
+
+**One shell flag, by precedent.** The core's `multi_select_mode` flips only when
+the selection is CONFIRMED; whether the checkboxes are showing before that is
+`sweepPicking`, shell state — the phone keeps the same pre-confirm flag as its
+chain filter (`TokenSelector.tsx: sweepActive`). Everything the flag reveals is
+the core's.
+
+**The chain is pinned by the first pick, not by a filter.** The phone's picker
+pins the network with a filter chip the web's SD1b does not draw; SD1b's notice
+appears "once the first token pins the network". So the first tap dispatches
+`set_multi_network` before `toggle_multi_token`, the core refuses every other
+chain from then on, and an emptied selection unpins (an `$effect`, so a person
+can start over without leaving the screen). A UI choice about when a rule
+starts applying, not a second copy of the rule.
+
+**ONE operation** needed nothing new: `slide_confirm` builds
+`multi_token_specs` in Rust and hands the calls to the existing spine, where
+"one call stays a single `executeUserOp` and N stay a MultiSend" was already
+written in 026. `sweep.e2e.ts` counts the relay's `eth_sendUserOperation`s and
+finds exactly one, whose calldata calls the USDC contract and names the
+recipient twice — once for the ETH value, once as the transfer's argument.
+
+### `manage_tokens` — constructed by nothing since 025, now by the sheet
+
+The session is built when the add-token sheet opens and disposed when it
+closes; the network snapshot rides on the probe request because the registry
+(defaults + custom networks) is the shell's; a confirmed save invalidates the
+token cache through the core's OWN `invalidate_token_cache`, and the route
+answers that with `balance.refresh(true)` — the balance list learns to look
+again on the machine's schedule, not the sheet's.
+
+**The probe is implicit.** The phone has a separate "search" button; the drawn
+sheet (T3) has one CTA, "add". So a well-formed address probes on its own, and
+the core's echo gate discards an answer for an address the person has already
+typed past — the staleness rule 016 wrote for exactly this.
+
+**Two things the mock draws are not here, recorded rather than improvised**
+(D51's rule): the network picker, because the core probes every known chain at
+once and the card names the one that answered — a picker would be choosing what
+the core already found; and the native-token tab, which is `network_admin`'s
+and lives in Settings. When several chains answer, the card is the first in
+registry order, which is the core's own order.
+
+**A sheet is a pushed step, and dismissing it now pops the step.** `FlowsMobile`
+hid a closed sheet without telling the route, so the next `go('add-token')` was
+a no-op on a stack whose top was already `t3` — nothing opened. `onsheetclose`
+is the callback the host never had; the route pops and disposes.
+
+### The e2e caught a real bug before anyone did
+
+The first `liveSendForm` / `liveSendConfirm` treated `multi_specs[].amount` as
+uint256 BASE units and converted it — and the sweep e2e's confirm page priced a
+100 USDC + 1.5 ETH sweep at **$0.00**, with "0.0001 USDC" in the breakdown. The
+core's `MultiTokenSpec.amount` is `full_balance()` less the reserve: a HUMAN
+decimal string, exactly as the phone hands it to its batch builder, which is
+the thing that makes base units. The second conversion was mine. It is gone,
+the unit test now feeds human strings, and the reason lives in `sweepAmount`'s
+own comment. This is what SC-404 "asserted, not eyeballed" buys: a unit test
+with the wrong fixture would have passed.
+
+**And a second one, in the stub.** With the amounts right, the sweep still sat
+on the confirm page: the diagnostic the test grew (`[send] unhandled tx error:
+invalid quantity: 0x…20…00: the value is too large to fit the target type`)
+named it. A plain `eth_call` on the submit path — the Safe's `nonce()` — expects
+ONE word, and the per-call stub had wrapped every `eth_call` in an aggregate3
+envelope. `isAggregate3()` now branches, and a plain call answers one zero
+word exactly as `send-lands` does. Two runs, two real findings: one in the
+shell, one in the harness, neither visible to a unit test.
+
+### The multicall stub answers per call now
+
+025/026's suites answer every `aggregate3` with N copies of one blob, which is
+enough when every slot decodes the same two words. A sweep needs two balances
+and an add-token probe needs `name()` and `symbol()` back as STRINGS, so
+`e2e/stub-multicall.ts` walks the calldata (the inverse of `encAggregate3`),
+finds each inner call's target and selector, and lets the test answer each. DEX
+quotes it declines, and the price ladder falls through to the Chainlink feed as
+it is built to.
+
+### Known and named
+
+- **A zero-balance custom token is not in the holdings list**, because the
+  holdings list is holdings: `fetchTokens` filters `balance > 0`, on the phone
+  as here. It IS listed in the sheet's own manage list (`custom_tokens`) and
+  will appear the moment it holds anything. The e2e gives it a balance.
+- **The desktop has no SD1b.** `DesktopFlowStateId` carries no sweep board
+  (021 drew none), and the desktop send is fixture-actioned until T453 anyway.
+  The sweep is the phone layout's until Phase 6 hands the panel the same
+  actions.
+- **Two suites cannot share one worktree's build.** The run after the fix
+  failed IDENTICALLY, because another session's Playwright had started its own
+  preview on 4173 in the four minutes between my runs, and `reuseExistingServer`
+  handed mine THEIR `.svelte-kit/cloudflare` from before the fix. The build dir
+  is one; two sessions building it swap each other's served code under a live
+  `wrangler dev`. Phase 3's rule ("one suite at a time") has its mechanism
+  named: check `lsof -ti tcp:4173` and wait, rather than kill, when it is
+  someone else's.
+- **Another session is editing the settings files in this tree** (a text-scale
+  slider — `preferences.svelte.ts`, `settings/live.ts`, `app.html`, the
+  preferences test and e2e). Their work is mid-flight and the shared `pnpm lint`
+  is red on two of THEIR unused imports; this phase's lint was run on its own
+  files, and only its own files are committed.
+
+**Gates**: check **0 errors on this phase's files** (the shared tree carries a
+syntax error in another session's untracked `TokenIcon.svelte.test.ts`) · lint
+clean on this phase's files (the shared `pnpm lint` and the tokens literal audit
+are red on that session's in-flight `settings/live.ts` and
+`ContactsDesktop.svelte`) · unit **850** passed, 1 failed = that audit case ·
+build ×15 + `build:extension` · e2e: **chromium 0 failures** in the full
+three-engine run (the sweep and both add-token cases included); **firefox +
+webkit 52/52** re-measured at `--workers=1` after the same run timed 29 of them
+out at machine load 54→94 — the 026 starvation, which the box's other sessions'
+builds turned into a certainty. Recorded as two numbers rather than one
+because they were two runs; the second is the fair one.

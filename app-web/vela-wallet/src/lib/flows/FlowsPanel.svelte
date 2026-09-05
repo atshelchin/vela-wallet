@@ -32,9 +32,11 @@
 		onback?: () => void;
 		onclose?: () => void;
 		onnavigate?: (to: string, index?: number) => void;
+		/** The add-token panel's handlers, when the `manage_tokens` core is live (spec 028). */
+		addToken?: { input(value: string): void; submit(): void };
 	}
 
-	let { model, onback, onclose, onnavigate }: Props = $props();
+	let { model, onback, onclose, onnavigate, addToken }: Props = $props();
 
 	const body = $derived(model.body);
 	const go = (to: string, index?: number) => onnavigate?.(to, index);
@@ -63,7 +65,11 @@
 			onreceive={() => go('receive')}
 		/>
 	{:else if body.kind === 'add-token'}
-		<AddToken model={body.model} />
+		<AddToken
+			model={body.model}
+			oninput={addToken ? (value) => addToken.input(value) : undefined}
+			onsubmit={addToken ? () => addToken.submit() : undefined}
+		/>
 	{:else if body.kind === 'send-pick'}
 		<SendPick model={body.model} onselect={(i) => go('send-form', i)} />
 	{:else if body.kind === 'send-form'}

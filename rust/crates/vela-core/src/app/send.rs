@@ -1527,7 +1527,11 @@ impl App for Send {
                     return Command::done();
                 }
                 model.recipient = recipient;
-                Command::all([sync_identity(model), schedule_form_estimate(model), render()])
+                Command::all([
+                    sync_identity(model),
+                    schedule_form_estimate(model),
+                    render(),
+                ])
             }
             Event::SetAmount { amount } => {
                 if view_amount_locked(model) {
@@ -1995,6 +1999,9 @@ fn tokens_loaded(model: &mut Model, tokens: Option<Vec<SendToken>>, purpose: Tok
         {
             model.selected_token = Some(found);
             model.step = SendStep::EnterDetails;
+            // A token's own 转账 door lands on the form: warm its quote as a
+            // picked row would (spec 028 Phase 10).
+            return warm_estimate_start(model);
         }
         return render();
     }
@@ -2005,7 +2012,9 @@ fn tokens_loaded(model: &mut Model, tokens: Option<Vec<SendToken>>, purpose: Tok
             model.selected_token = Some(first);
             model.recipient = prefilled;
             model.step = SendStep::EnterDetails;
-            return Command::all([sync_identity(model), schedule_form_estimate(model), render()]);
+            // The warm quote first; the form's own (payee-aware) quote is
+            // armed by its landing, once an amount is typed.
+            return Command::all([sync_identity(model), warm_estimate_start(model)]);
         }
     }
     render()
@@ -2113,7 +2122,11 @@ fn finish_lock_resolution(model: &mut Model, token: SendToken) -> Cmd {
     model.selected_token = Some(token);
     model.step = SendStep::EnterDetails;
     model.resolving_lock = false;
-    Command::all([sync_identity(model), schedule_form_estimate(model), render()])
+    Command::all([
+        sync_identity(model),
+        schedule_form_estimate(model),
+        render(),
+    ])
 }
 
 fn lock_meta_resolved(model: &mut Model, meta: Option<SendTokenMeta>) -> Cmd {
@@ -2197,21 +2210,16 @@ fn select_token(model: &mut Model, token_id: &str) -> Cmd {
     model.fee_estimate = None; // a prior network's quote must never gate this token
     model.selected_token = Some(token);
     model.step = SendStep::EnterDetails;
-    prefetch_credential(model)
-}
-
-/// The token-select prefetch (`useSendController.ts:643-648`); the shell warms
-/// its RPC caches on its own.
-fn prefetch_credential(model: &mut Model) -> Cmd {
-    let Some(account_id) = model.account.as_ref().map(|a| a.id.clone()) else {
-        return render();
-    };
-    let id = next(model);
-    model.flights.prefetch_credential = Some(id);
-    Command::all([
-        issue(id, SendOperation::LoadAccountCredential { account_id }),
-        render(),
-    ])
+    // The credential prefetch (`useSendController.ts:643-648`) AND a warm
+    // quote (spec 028 Phase 10): the form's fee row and its Max used to wait
+    // for the whole estimate pipeline — deployment read, gas signals, relay
+    // quote, in-band rows, simulation — which the founder measured at five to
+    // six seconds on the web, and only once the form was complete. The sweep
+    // path has warmed a transfer-sized quote since 026; the single-token path
+    // now does the same, so the fee is usually in hand before the person has
+    // finished typing. Best-effort: a failed warm-up is swallowed, and the
+    // form's own debounced quote re-asks with the real payee once it lands.
+    warm_estimate_start(model)
 }
 
 /// One tap on one row. Deselecting is ALWAYS allowed — a row that somehow got
@@ -2777,7 +2785,11 @@ fn recipients_changed(model: &mut Model, rows: Vec<SendRecipientDraft>) -> Cmd {
             DenominatedAmount::token(rows.first().map(|r| r.amount.clone()).unwrap_or_default());
         model.split_mode = false;
         model.recipients.clear();
-        return Command::all([sync_identity(model), schedule_form_estimate(model), render()]);
+        return Command::all([
+            sync_identity(model),
+            schedule_form_estimate(model),
+            render(),
+        ]);
     }
     let mut rows = assign_ids(model, rows);
     rows.truncate(BATCH_MAX_RECIPIENTS);
@@ -2802,7 +2814,11 @@ fn apply_picked_address(model: &mut Model, address: String) -> Cmd {
         }
         None => {
             model.recipient = address;
-            Command::all([sync_identity(model), schedule_form_estimate(model), render()])
+            Command::all([
+                sync_identity(model),
+                schedule_form_estimate(model),
+                render(),
+            ])
         }
     }
 }
@@ -2840,11 +2856,19 @@ fn scan_resolved(model: &mut Model, scan: SendScan) -> Cmd {
         }
         SendScan::Request { recipient, .. } => {
             model.recipient = recipient;
-            Command::all([sync_identity(model), schedule_form_estimate(model), render()])
+            Command::all([
+                sync_identity(model),
+                schedule_form_estimate(model),
+                render(),
+            ])
         }
         SendScan::Text { data } => {
             model.recipient = data;
-            Command::all([sync_identity(model), schedule_form_estimate(model), render()])
+            Command::all([
+                sync_identity(model),
+                schedule_form_estimate(model),
+                render(),
+            ])
         }
     }
 }
@@ -3937,10 +3961,15 @@ fn accept_fee(model: &mut Model, id: u64, outcome: SendFeeOutcome) -> Cmd {
             if let SendFeeOutcome::Ok { estimate } = outcome {
                 if let Some(fee) = parse_fee_view(&estimate) {
                     model.fee_estimate = Some(fee);
-                    return render();
+                    // The warm quote knows no payee. A form that became
+                    // complete while it was in flight could not arm its own
+                    // quote (the pipeline slot was taken); it is armed now,
+                    // and the warm figure stays on screen until it answers.
+                    return Command::all([schedule_form_estimate(model), render()]);
                 }
             }
-            Command::done() // warm-up failure swallowed
+            // Warm-up failure swallowed — and the form's quote gets its turn.
+            Command::all([schedule_form_estimate(model), render()])
         }
         Pipeline::FormEstimate { id: expect, key } if expect == id => {
             model.pipeline = Pipeline::Idle;

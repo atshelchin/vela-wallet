@@ -269,7 +269,10 @@ fn boot(tokens: Vec<SendToken>) -> Sut {
     sut
 }
 
-/// Select ETH and settle the credential prefetch.
+/// Select ETH and settle the credential prefetch — and the warm quote it
+/// starts (spec 028 Phase 10). The warm-up is answered FAILED here so every
+/// rule below still meets the form exactly as it did before the warm-up
+/// existed: no fee in hand, the pipeline idle.
 fn select_eth(sut: &mut Sut) {
     let ops = sut.dispatch(Event::SelectToken {
         token_id: eth("2").id(),
@@ -280,7 +283,30 @@ fn select_eth(sut: &mut Sut) {
             account_id: "cred-1".to_owned()
         }]
     );
-    assert!(sut.resolve(credential(Some(PK))).is_empty());
+    settle_warm_quote(sut);
+}
+
+/// The credential lands, the warm quote is asked, and is refused — the
+/// swallowed failure that leaves the model as a plain selection would.
+fn settle_warm_quote(sut: &mut Sut) {
+    let ops = sut.resolve(credential(Some(PK)));
+    assert!(
+        matches!(
+            ops.as_slice(),
+            [Op::EstimateFee {
+                tx: None,
+                batch: None,
+                ..
+            }]
+        ),
+        "a picked token warms a transfer-sized quote: {ops:?}"
+    );
+    let ops = sut.resolve(Res::FeeEstimated {
+        outcome: SendFeeOutcome::Failed {
+            kind: SendEstimateFailure::QuoteUnavailable,
+        },
+    });
+    assert!(ops.is_empty(), "a refused warm-up is swallowed: {ops:?}");
 }
 
 /// Select USDC (6 decimals, priced at 1 USD) and settle the credential
@@ -295,7 +321,7 @@ fn select_usdc(sut: &mut Sut) {
             account_id: "cred-1".to_owned()
         }]
     );
-    assert!(sut.resolve(credential(Some(PK))).is_empty());
+    settle_warm_quote(sut);
 }
 
 fn set_recipient(sut: &mut Sut, addr: &str) {
@@ -834,8 +860,11 @@ fn prefilled_recipient_quick_send_picks_the_most_valuable_token() {
     }));
     let ops = sut.resolve(loaded(vec![usdc("5"), eth("2")]));
     assert!(
-        matches!(ops.as_slice(), [Op::ResolveIdentity { .. }]),
-        "recipient prefill resolves identity: {ops:?}"
+        matches!(
+            ops.as_slice(),
+            [Op::ResolveIdentity { .. }, Op::LoadAccountCredential { .. }]
+        ),
+        "recipient prefill resolves identity and warms a quote (Phase 10): {ops:?}"
     );
     let view = sut.view();
     assert_eq!(
@@ -1961,6 +1990,16 @@ fn estimate_timeout_stays_put_and_a_late_quote_still_lands_ported_verbatim() {
         |op| matches!(op, Op::LoadAccountCredential { .. }),
         credential(Some(PK)),
     );
+    // The warm quote (Phase 10) is refused, so the pre-check's estimate below
+    // is the only `EstimateFee` left for the late answer to land on.
+    sut.resolve_where(
+        |op| matches!(op, Op::EstimateFee { tx: None, .. }),
+        Res::FeeEstimated {
+            outcome: SendFeeOutcome::Failed {
+                kind: SendEstimateFailure::QuoteUnavailable,
+            },
+        },
+    );
     sut.dispatch(Event::SetRecipient {
         recipient: RECIPIENT.to_owned(),
     });
@@ -2093,10 +2132,7 @@ fn the_signed_quote_is_exactly_the_displayed_estimate() {
 #[test]
 fn a_requote_before_the_slide_signs_the_new_number_not_the_old_one() {
     let mut sut = boot(vec![usdc("100")]);
-    sut.dispatch(Event::SelectToken {
-        token_id: usdc("100").id(),
-    });
-    sut.resolve(credential(Some(PK)));
+    select_usdc(&mut sut);
     set_recipient(&mut sut, RECIPIENT);
     sut.dispatch(Event::SetAmount {
         amount: "10".to_owned(),
@@ -2157,10 +2193,7 @@ fn a_quote_from_another_chain_is_never_shown_or_signed() {
 #[test]
 fn a_doomed_same_asset_batch_never_reaches_the_passkey() {
     let mut sut = boot(vec![usdc("5")]);
-    sut.dispatch(Event::SelectToken {
-        token_id: usdc("5").id(),
-    });
-    sut.resolve(credential(Some(PK)));
+    select_usdc(&mut sut);
     set_recipient(&mut sut, RECIPIENT);
     sut.dispatch(Event::SetAmount {
         amount: "4.5".to_owned(),
@@ -2709,10 +2742,7 @@ fn relayer_unavailable_with_a_depleted_treasury_shows_the_honest_bootstrap_ask()
 #[test]
 fn leaving_confirm_resets_the_fee_asset_and_clears_a_stale_erc20_estimate() {
     let mut sut = boot(vec![usdc("100")]);
-    sut.dispatch(Event::SelectToken {
-        token_id: usdc("100").id(),
-    });
-    sut.resolve(credential(Some(PK)));
+    select_usdc(&mut sut);
     set_recipient(&mut sut, RECIPIENT);
     sut.dispatch(Event::SetAmount {
         amount: "10".to_owned(),
@@ -3016,6 +3046,14 @@ fn an_unlocked_prefill_still_carries_its_recipient_across_a_token_change() {
         ..SendOpenParams::default()
     }));
     sut.resolve(loaded(vec![eth("2"), usdc("5")]));
+    // The prefill resolved an identity and warmed a quote (Phase 10); neither
+    // is this rule's subject, and a FIFO walk must not answer them by accident.
+    sut.drop_matching(|op| {
+        matches!(
+            op,
+            Op::ResolveIdentity { .. } | Op::LoadAccountCredential { .. }
+        )
+    });
     select_eth(&mut sut);
     sut.dispatch(Event::Back);
     assert_eq!(sut.view().recipient, "");
@@ -3180,7 +3218,10 @@ fn a_complete_form_quotes_once_it_sits_still_and_shows_the_fee_before_continue()
     assert!(sut.resolve(fee_ok(native_fee(1, 21_000))).is_empty());
     let view = sut.view();
     assert_eq!(view.stage, SendStage::EnterDetails, "still the form");
-    assert!(view.fee.is_some(), "the fee row has a figure before Continue");
+    assert!(
+        view.fee.is_some(),
+        "the fee row has a figure before Continue"
+    );
 }
 
 #[test]
@@ -3275,7 +3316,10 @@ fn continue_takes_over_from_a_pending_form_quote_and_a_landed_one_is_not_asked_t
     let ops = sut.dispatch(Event::SetAmount {
         amount: "1.25".to_owned(),
     });
-    assert!(ops.is_empty(), "the amount alone is not a new question: {ops:?}");
+    assert!(
+        ops.is_empty(),
+        "the amount alone is not a new question: {ops:?}"
+    );
     // A different fee coin is.
     let ops = sut.dispatch(Event::ChooseFeeToken {
         token: Some(USDC.to_owned()),

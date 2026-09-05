@@ -45,6 +45,9 @@
 	import { preferences } from '$lib/services/preferences.svelte';
 	import { publishExtSnapshot } from '$lib/dapp/core/ext-cache';
 	import { inExtension } from '$lib/dapp/transport';
+	import { publishExtChains } from '$lib/dapp/core/ext-chains';
+	import { followActiveAccount } from '$lib/dapp/follow';
+	import { subscribeNetworks } from '$lib/services/networks';
 	import { avatarSvgForClient } from '$lib/wallet/identicon';
 	import { desktopWithIdentity, homeWithIdentity, type WalletIdentity } from '$lib/wallet/identity';
 	import FlowsMobile from '$lib/flows/FlowsMobile.svelte';
@@ -956,6 +959,37 @@
 		handedOff = true;
 		if (handoff === null) return;
 		void goto(resolve('/[locale]/wallet', { locale: data.locale }), { replaceState: true });
+	/**
+	 * The network catalog the worker answers reads and chain switches from —
+	 * built-in chains plus the custom networks a person added. Published once
+	 * the wallet is up, and again whenever the network list changes.
+	 */
+	onMount(() => {
+		if (!inExtension()) return;
+		void publishExtChains();
+		return subscribeNetworks(() => void publishExtChains());
+	});
+
+	/**
+	 * A connected site follows the active account (spec 027 T350's rule,
+	 * performed). The FIRST address the session settles on is a boot, not a
+	 * switch: only a change from one known address to another asks the core to
+	 * re-pin the grants, and the worker announces each re-pinned grant to the
+	 * site's tabs as `accountsChanged`.
+	 */
+	let followedAddress: string | null = null;
+	$effect(() => {
+		const view = session.view;
+		if (view.loading || !inExtension() || !view.address) return;
+		const previous = followedAddress;
+		followedAddress = view.address;
+		if (previous === null || previous.toLowerCase() === view.address.toLowerCase()) return;
+		void followActiveAccount({
+			activeAddress: view.address,
+			addresses: view.accounts.map((row) => row.account.address)
+		});
+	});
+
 		if (handoff.kind === 'receive') {
 			nav.enter('receive');
 			return;

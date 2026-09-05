@@ -114,20 +114,27 @@ fixed before this feature ships. It is tracked in 027's ledger.
 ## Phase 6: The book travels, and the desktop sends (one commit)
 
 **Reassigned 2026-09-05**: the founder handed the app-web contacts feature —
-import/export included — to a separate session (`vela-wallet-63`, working in
-`contacts.rs` + new files under `lib/contacts/`). T450–T452 are theirs now and
-are not done here; what this session had learned was handed over in a message
-(the core already owns the import policy via `import_parsed` →
-`last_import`; the web port is parse/serialize only; the desktop header
-dropdown already emits `sheet-select` with `importAll` / `exportAll`).
+import/export included, and every other drawn-but-dead affordance — to a
+separate session (`vela-wallet-63`). Done there, on this branch, with the
+rules in the core (results.md Phase 6b):
 
-- [~] T450 [US5] Port `contact-io.ts` + `saved-contact.ts` — **reassigned**
-- [~] T451 [US5] The contacts route gains export/import — **reassigned**
-- [~] T452 [P] [US5] Units: the collision matrix, a malformed file — **reassigned**
+- [X] T450 [US5] ~~Port `contact-io.ts` + `saved-contact.ts`~~ → the file
+      FORMAT went into the core instead (`app/contacts_io.rs`, lifted from the
+      desktop shell's copy) behind `import_file` / `export_requested`; existing
+      entry wins, groups preserved, a malformed file refused before any write
+      (D50) — and "导入到本组" seats every valid row. `saved-contact.ts` needs
+      no port: the core's `recipient.saved` already answers it
+- [X] T451 [US5] The contacts route gains export/import through 026's file
+      seams (`pickTextFile` / `saveTextFile`) — plus the rest of the book:
+      members, 移入分组, the QR, 最近往来 from the feed, the menus, and the
+      hand-off to /wallet (`?to=`, `?group=`, `?flow=receive`)
+- [X] T452 [P] [US5] Units: the collision matrix, a malformed file, a round
+      trip — in Rust (`app_contacts` 44 → 54) and vitest (live builders,
+      pickers, report, hand-off, history mapping)
 - [X] T453 [US6] The wallet route hands `FlowsPanel` the same send actions
       `FlowsMobile` has — and reads the core's stage for the third column
       (`desktopSendState`), as the phone host has since 026
-- [X] T454 e2e ~~`contacts-io.e2e.ts` (SC-408)~~ (reassigned) +
+- [X] T454 e2e `contacts-io.e2e.ts` (SC-408, `vela-wallet-63`) +
       `desktop-send.e2e.ts` (SC-409)
 - [X] T455 Full gate; results.md Phase 6 entry (isolated worktree, port 4174)
 
@@ -141,8 +148,8 @@ dropdown already emits `sheet-select` with `importAll` / `exportAll`).
       `app/` dir); `chunkSource` now reads what the preview serves
 - [ ] T461 [~] The device pass: scan a real code with a real camera, and a photo
       of one — the ladder was measured on hardware and the port must keep it
-- [ ] T462 Close results.md: SC-401…410 verdicts, deviations, 029 handoff
-- [ ] T463 Final sanity: all gates + `gen-core-types --check`
+- [X] T462 Close results.md: SC-401…410 verdicts, deviations, 029 handoff
+- [X] T463 Final sanity: all gates + `gen-core-types --check` (isolated worktree: 181/1/0)
 
 ## Dependencies
 

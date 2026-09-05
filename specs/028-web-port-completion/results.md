@@ -700,6 +700,112 @@ build ×15 + `build:extension` · e2e in the isolated worktree on 4174:
 failure being T460's decoder budget mid-construction (below), re-run **3/3**
 once finished. Every SC-409 assertion is in `desktop-send.e2e.ts`.
 
+## Phase 6b — the book travels, and the book does things (US5, `vela-wallet-63`) — 2026-09-05
+
+**The founder's report, verbatim in effect:** the web address book could add a
+contact and make a group, and nothing else. Add member, import, export, a
+contact's 转账 / 收款 / 二维码 / 最近往来 / 全部往来, every right-click row
+(import, rename, export, delete), 从文件导入, 群发转账 — drawn, dead. And the
+standing rule: the rules go in vela-core, because Android, iOS and the desktop
+run the same book.
+
+### What the core gained (contacts.rs, contacts_io.rs, send.rs)
+
+- **The file format is the core's now.** `app/contacts_io.rs` (new) is the
+  desktop shell's `executor/contact_io.rs` (031) lifted up a level: JSON/CSV
+  sniffing (extension, then shape, BOM-tolerant), quoting, the address-column
+  heuristics (header word → first column that holds an address), the
+  headerless-positional rule, the `;`-joined groups column, and the filename
+  `vela-contacts[-<slug>][-<yyyy-mm-dd>].{json,csv}` (slug keeps any script's
+  letters — 家人 stays 家人). Four shells now read each other's backups by one
+  definition. **Two semantics changed** against the desktop copy, per D50:
+  malformed JSON and an empty CSV are REFUSED (`ContactImportFailure`) rather
+  than parsed to an empty success — "0 added" is indistinguishable from an
+  empty book, and the file's mistake was being erased before anyone saw it.
+- **Events, not operations.** `import_file { content, filename, into_group,
+  now_ms }` · `import_acknowledged` · `export_requested { scope: all|group,
+  format: json|csv, exported_at_iso }` · `export_taken` · `add_group_members`
+  · `remove_group_member` · `set_contact_groups { address, group_ids }`. View
+  fields: `import_failure`, `export` (a one-shot file). No
+  `ContactOperation`/`ContactShellResult` variant was added and no stored
+  shape moved, because contacts.rs has FOUR shell consumers (web, the desktop
+  executor, the 040 Android and 050 iOS worktrees): a new operation breaks
+  every exhaustive match, a renamed stored field silently corrupts
+  `vela.contacts*` on someone's other device. Android decodes with
+  `ignoreUnknownKeys`, Swift ignores unknown keys, serde does too — view
+  additions cost the shells nothing. (Coordinated with vela-wallet-d1, who
+  named the four consumers and the trap.)
+- **"导入到本组" is a rule, stated:** every VALID row in the file is seated in
+  the group — the newly added AND the already saved — while existing-wins
+  still protects every saved name, note and star. The person named the group;
+  membership is the one thing an existing entry does not get to veto. A stale
+  group id refuses before any write (`unknown_group`).
+- **A pick closes the picker** (`send.rs::apply_picked_address`), as
+  `seed_split` already did for a group — the shell should not need a second
+  sentence to say what the first one meant.
+- Tests: `app_contacts` 44 → **54** (export→import restore + re-import is a
+  no-op, import-into-group, the four refusals write nothing, group export
+  covers its members only, filename slugs, add/remove/reseat members, the
+  four parse heuristics); `app_send` +1 (pick fills and closes).
+
+### What the web gained
+
+- **Every drawn affordance does something.** Detail: 转账 → `/wallet?to=…`,
+  收款 → `/wallet?flow=receive`, 二维码 → the contact's address as a code
+  (their identicon in the centre, the address printed in full, copy), copy on
+  the address block, `+ 移入分组` → a group tick-list (`set_contact_groups`),
+  最近往来 from the wallet's own feed narrowed to this counterparty (three
+  rows, 全部 › shows them all, the history empty state when there are none).
+  Group: 添加成员 → the book as a tick-list (`set_group_members`), 群发转账 →
+  `/wallet?group=<id>`, ⋯ → 编辑/导入到本组/导出本组/删除分组. Desktop:
+  right-click on a group row and on a contact row (the drawn DC6 / M2 menus),
+  the header ⋯ (导入通讯录 / 导出全部通讯录), the group head's CTA and ⋯.
+  Mobile: the "+" opens the drawn C5 sheet (新建联系人 / 从文件导入 /
+  导出通讯录) — which is how the phone gets an export entry at all.
+- **Files in and out** through 026's seams: `pickTextFile('.json,.csv,.txt')`
+  → `import_file`; the view's `export` → `saveTextFile` → `export_taken`. The
+  report (added / already existed / + invalid count) or the refusal is the
+  core's, shown in one sheet-or-dialog and acknowledged.
+- **The book meets the money.** `load_send_history` reads the real tx store
+  (025's `vela.transactionHistory`) — so recent recipients become the core's
+  `auto` suggestions and `first_interaction` is judged on real history. The
+  send flow's recipient picker (SD2e/DSD2e) — which showed the gallery's three
+  fixture people inside a LIVE send, and whose core state
+  `show_contact_picker` nothing read — is fed by a route-scoped ContactsCore
+  session: a pick dispatches `picked_address`, a group `seed_split_recipients`.
+  `/contacts` hands a person over by URL (`flows/contact-handoff.ts`); the
+  wallet route reads it once and opens the flow as a scanned code would.
+- **Corpus +2** (`contacts.groupDeleteBody` — deleting a group keeps its
+  contacts, and the confirm says so; `contacts.importDoneInvalid` — the third
+  number the report had no words for). Pins 1623→1625 / 1539→1541; jest leaf
+  total 22,803→22,833. `lint:i18n` rejected `{{count}}` in a key without
+  plural forms (A5); the placeholder is `{{invalid}}`.
+
+### Deviations, recorded
+
+- **The wasm moved** (4603c8421603 → 6c12c861449a, 3,630,664 → 3,675,342 B;
+  +44,678 B for the file format, the seven events and the picker rule) and the
+  generated wallet-state types regenerated into both mirrors (4 new files,
+  2 changed) — a founder-level decision ("业务规则要在 vela core 里面写"), not
+  a slip. Every later spec's "artifact byte-identical" budget restarts from
+  6c12c861449a.
+- **Desktop import fork, with an end date.** Until the desktop dispatches the
+  core's `import_file` / `export_requested` and deletes its `contact_io.rs`
+  (owner: the vela-wallet-native session, 032+), the same malformed file
+  "succeeds with nothing" there and is refused here. Named by d1; agreed.
+- **`?to=` is a prefill, never a lock** — the same trust the phone's
+  `prefilled_recipient` deep link has. A locked send needs a chain and comes
+  only from a scanned EIP-681 request.
+- **Not done, and said:** desktop drag-a-contact-onto-a-group (018's
+  `dropTarget` board) — the tick-list covers the need; the split-mode
+  per-row "pick from book" (SendForm has no per-row handler; the row's scan
+  path already exists); an activity filter on the wallet's history screen for
+  全部往来 (the detail expands in place instead).
+
+### Gates
+
+<!-- GATES-6B -->
+
 ---
 
 ## Phase 7 (in progress) — budgets
@@ -725,3 +831,105 @@ the dApp channel off Welcome, the artifact test's neighbours — **has passed
 vacuously for two specs.** `chunkSource` now reads `.svelte-kit/cloudflare`
 (what the preview serves) first, and the decoder test asserts that at least one
 served chunk was readable before it asserts that any of them carries nothing.
+
+---
+
+## Closeout (T462) — verdicts, deviations, the handoff
+
+### SC-401…410
+
+| SC | Verdict | Proven by |
+| --- | --- | --- |
+| SC-401 the receive code IS the address; a payment request survives the round trip | **met** | `wallet/qr.test.ts` (jsqr reads the card), `receive-code.e2e.ts` (the rendered path, rasterised and decoded) |
+| SC-402 a code is read from a chosen image; a refused / absent camera states its reason | **met** | `scan.e2e.ts` ×5: picked image → send form; the in-send scanner; `denied`, `absent` and an unusable code each get their own sentence |
+| SC-403 the share card carries address, code and identicon together | **met** | `liveShareCard` (Phase 2) + `qr.test.ts`; the image ("Save image") composes the three |
+| SC-404 a sweep of two assets on one network is ONE operation | **met** | `sweep.e2e.ts`: exactly one `eth_sendUserOperation`, calldata calling USDC and naming the recipient twice |
+| SC-405 a token added by address shows the chain's identity, survives a reload, can be sent | **met** (sent: by construction) | `add-token.e2e.ts` ×2: identity from the stubbed chain, listed with its balance, present after reload; it is a `SendToken` like any other — a send of it was not separately driven |
+| SC-406 each preference takes effect and survives a reload; number and date presets show in the app's own figures | **met** | `preferences.e2e.ts` (date, number, theme ×3 engines); `live-activity.test.ts` (day headers), `locale-format.test.ts` (money) |
+| SC-407 erase leaves nothing; cancel changes nothing | **met** | `preferences.e2e.ts` ×3 engines: localStorage + IndexedDB swept, the one named exception kept; cancel leaves the keys byte-identical |
+| SC-408 an export re-imported changes nothing; a collision leaves the existing entry and reports it | **reassigned** | the founder handed contacts import/export to session `vela-wallet-63` mid-Phase 6; not proven here |
+| SC-409 a send completes at desktop width | **met** | `desktop-send.e2e.ts` |
+| SC-410 (FR-410) nothing regresses: galleries pixel-unchanged, corpus via the 5-step process, budgets hold | **met with one restated budget** | galleries untouched (fixtures never changed); the corpus grew by 3 words through all six steps; the artifact is **+129 B** (Phase 3) — "byte-identical" was the wrong pin for a feature whose baseline said words would be added; the decoder budget is real and has a control |
+
+### Deviations from the plan, each with its reason
+
+1. **D44 corrected in Phase 2**: the plan called Expo's hand-rolled `qrcode.ts`
+   the porting truth; nothing imports it. The encoder is the `qrcode` package
+   the phone ships, and the port is 20 lines of `qr-path.ts`.
+2. **T421 not a port**: `image-decode.ts` is a pure-JS JPEG decoder for a
+   platform with no canvas. A browser decodes images itself.
+3. **The corpus grew by 3 words and the artifact by 129 bytes** (Phase 3); the
+   cargo line in the corpus recipe needs `i18n-all,crux`.
+4. **`avatar-style.ts` folded into `preferences.svelte.ts`** (Phase 4): its 54
+   lines are a cache, a listener set and a version counter — all three are
+   `$state`. The artwork was ported.
+5. **Token amounts get the decimal mark, not the grouping** (Phase 4); money
+   gets both. The mocks draw token amounts ungrouped.
+6. **`multi_specs[].amount` is a HUMAN decimal string** (Phase 5) — the first
+   overlay converted it twice; the e2e caught it.
+7. **The add-token sheet has no network picker and no native tab** (Phase 5):
+   the core probes every chain; the native tab is `network_admin`'s.
+8. **T450–T452 reassigned** (Phase 6) to `vela-wallet-63` by the founder.
+9. **Gates moved to an isolated worktree** (Phase 6) after the shared preview
+   crashed twice under three engines with three sessions building.
+10. **`chunksCarrying` had been vacuous since 027** (Phase 7): fixed, and the
+    decoder budget carries a positive control.
+
+### T461 — the device pass (a human with a phone)
+
+Not performed here; the ladder was measured on hardware and the port must
+keep it. Steps, five minutes, one phone with a rear camera:
+
+1. Open `wallet.getvela.app` (or the preview URL) **over HTTPS** on the phone,
+   sign in, tap Scan. Expect the browser's permission prompt, then a live
+   viewfinder. Deny once and reopen: expect the "camera access is needed"
+   sentence, not a black frame.
+2. Show another phone's receive code (or a printed one) to the camera at
+   normal room light, about 20 cm away. Expect the address in the send form
+   within two seconds.
+3. Photograph a code with the phone's own camera app, then in Vela tap the
+   photo tool and pick that photo. Expect the same result — this is the zbar
+   ladder at 1200/1000/800/600/400 on a real JPEG.
+4. Pick a screenshot of a code (clean pixels, cropped quiet zone). Expect it to
+   read — this is the jsQR fallback the ladder ends in.
+5. Open the page over plain HTTP on a LAN address and tap Scan. Expect the
+   "secure connection" sentence.
+
+If any step gives a black frame with no sentence, that is a bug in
+`scanner.svelte.ts`'s classification, and the console's `[send]`-style
+warnings will name the `getUserMedia` error it did not recognise.
+
+### 029 handoff
+
+- **What the next feature inherits**: every drawn surface of 024–027 is live
+  except the contacts import/export (with `vela-wallet-63`) and the phone's
+  export entry (the drawn `addMenu` sheet, still a picture). The desktop send
+  drives the same session as the phone; the sweep and add-token screens are
+  wired to their machines; the six preference rows work; erase erases.
+- **Measured, not assumed**: the core artifact is `vela_core_bg.7caac430e4b3.wasm`
+  at 3,630,793 B at this branch's last commit by this session; a later session
+  rebuilt it again for the contacts core (`5992756ce06b`, uncommitted at the
+  time of writing) — the fingerprint test reads whatever is served, so it holds
+  either way.
+- **The isolated gate is reusable**: `git worktree add --detach
+  /Volumes/data/production/vela-wallet-e2e <sha>`, apply a patch, `pnpm
+  install --offline`, `pnpm sync:wasm`, `playwright.isolated.config.ts` on
+  4174. Remove the worktree with `git worktree remove` when done.
+- **Debts named for Penpot/029**: SD1b has no desktop twin; the add-token
+  sheet's network picker and native tab; the phone's contacts export entry;
+  `formatUsd` in `activity.ts` still writes a `$`-formatted string into a
+  stored record (the Expo contract) rather than a number.
+
+### T463 — final sanity, at the branch's last commit by this session
+
+Shared tree, after the third session fixed its in-flight types: `pnpm check`
+**1409 files / 0 errors** with `gen-core-types --check` current (11 session +
+315 wallet-state mirrors) · unit **869** passed · build ×15 +
+`build:extension` · e2e at `a6683a53` in the isolated worktree on 4174,
+`--workers=2`, three engines: **181 passed / 1 skipped / 0 failed** in 4.1
+minutes, at machine load 77→38. The one skip is 027's `test.fixme` for SC-304,
+this feature's stated precondition and not its task.
+
+**Open at close**: T461 (a human with a phone, five steps above) and SC-408
+(with `vela-wallet-63`). Everything else this feature named is done and
+measured.

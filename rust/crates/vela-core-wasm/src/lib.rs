@@ -1380,5 +1380,6 @@ pub fn attest_safe_message_hash(
     chain_id: u64,
     safe_address: &str,
 ) -> JsResult<Vec<u8>> {
-    vela_core::user_op::compute_safe_message_hash(original_hash, chain_id, safe_address).map_err(err)
+    vela_core::user_op::compute_safe_message_hash(original_hash, chain_id, safe_address)
+        .map_err(err)
 }

@@ -30,7 +30,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { MediaQuery } from 'svelte/reactivity';
+	import { MediaQuery, SvelteMap } from 'svelte/reactivity';
 	import SettingsDesktop from '$lib/settings/SettingsDesktop.svelte';
 	import SettingsHome from '$lib/settings/SettingsHome.svelte';
 	import { desktopWithIdentity, homeWithIdentity } from '$lib/settings/identity';
@@ -39,12 +39,23 @@
 	import { networkAdmin } from '$lib/settings/core/network-admin.svelte';
 	import { currency } from '$lib/settings/core/currency.svelte';
 	import {
+		withLiveAccounts,
+		withLiveAccountsDesktop,
 		withLiveConnections,
 		withLiveCurrency,
 		withLiveNetworks,
-		withLiveNetworksDesktop
+		withLiveNetworksDesktop,
+		withLiveStorage
 	} from '$lib/settings/live';
 	import { listGrants, revokeAll, revokeGrant } from '$lib/dapp/connections';
+	import {
+		clearAllCaches,
+		clearStorageItem,
+		measureDeviceStorage,
+		STORAGE_ITEM_IDS,
+		type DeviceStorageReport,
+		type StorageItemId
+	} from '$lib/services/device-storage';
 	import {
 		themeFromSegment,
 		withEraseFailure,
@@ -69,6 +80,7 @@
 	let { data }: PageProps = $props();
 
 	const welcome = $derived(resolve('/[locale]', { locale: data.locale }));
+	const createHref = $derived(resolve('/[locale]/create', { locale: data.locale }));
 	const walletHref = $derived(resolve('/[locale]/wallet', { locale: data.locale }));
 	const contactsHref = $derived(resolve('/[locale]/contacts', { locale: data.locale }));
 	const wide = new MediaQuery(`(min-width: ${BREAKPOINT_DESKTOP}px)`, false);
@@ -138,6 +150,7 @@
 		void balance.boot();
 		preferences.boot();
 		void refreshGrants();
+		void refreshStorage();
 	});
 
 	// --- Preferences (spec 028 T431–T434) -------------------------------------
@@ -237,6 +250,67 @@
 		await refreshGrants();
 	}
 
+	// --- The storage page's own numbers (spec 028 Phase 8) --------------------
+	//
+	// Measured on entry and after every clear; until the first measurement the
+	// drawn fixture figures stand, exactly as they did before this phase.
+	let storageReport = $state<DeviceStorageReport | null>(null);
+	async function refreshStorage(): Promise<void> {
+		storageReport = await measureDeviceStorage();
+	}
+
+	/**
+	 * A storage row's action. The dApp rows are grants (above); every other
+	 * drawn row is a key list the service owns, cleared and re-measured here.
+	 */
+	async function clearRow(id: string): Promise<void> {
+		const isItem = (STORAGE_ITEM_IDS as readonly string[]).includes(id);
+		if (!isItem || id === 'dapps') {
+			await disconnect(id);
+			return;
+		}
+		await clearStorageItem(id as Exclude<StorageItemId, 'dapps'>);
+		await refreshStorage();
+	}
+
+	async function clearCaches(): Promise<void> {
+		await clearAllCaches();
+		await refreshStorage();
+	}
+
+	// --- The account switcher (spec 028 Phase 8) ------------------------------
+	//
+	// Rows are the session's own, in its order; the totals are the balance
+	// core's switcher cache, with the live total standing in for the active
+	// account's. A pick is answered by the session, which persists the index.
+	const accountsInput = $derived.by(() => {
+		const balances = new SvelteMap<string, number>();
+		for (const entry of balance.view.switcher.balances) {
+			balances.set(entry.address.toLowerCase(), entry.usd);
+		}
+		if (balance.view.display_total_usd !== null && view.address !== '') {
+			balances.set(view.address.toLowerCase(), balance.view.display_total_usd);
+		}
+		return {
+			rows: view.accounts,
+			activeIndex: view.active_index,
+			balances,
+			currency: currency.view,
+			identicon: (address: string, name: string) => avatarSvgForClient(address, name)
+		};
+	});
+
+	function selectAccount(position: number): void {
+		const row = view.accounts[position];
+		if (row !== undefined) session.switchAccount(row.index);
+	}
+
+	/** The switcher is on screen: the balance core refreshes every row's total. */
+	function accountsOpen(open: boolean): void {
+		if (open) balance.openSwitcher(view.accounts.map((row) => row.account.address));
+		else balance.closeSwitcher();
+	}
+
 	/** Which network's editor is open — render state; the ledger is the core's. */
 	let selectedNetworkId = $state<string | undefined>(undefined);
 
@@ -244,42 +318,28 @@
 	const m = $derived(data.settingsMessages);
 
 	/** Fixture base → identity overlay → live network sections (research D7). */
-	const liveHome = $derived(
-		identity === null
-			? data.home
-			: withEraseFailure(
-					withLivePreferences(
-						withLiveConnections(
-							withLiveCurrency(
-								withLiveNetworks(homeWithIdentity(data.home, identity), net, m, selectedNetworkId),
-								currency.view
-							),
-							grants,
-							m
-						),
-						m,
-						languageValue,
-						data.locale
-					),
-					m,
-					eraseFailed
-				)
-	);
-	const liveDesktop = $derived(
-		identity === null
-			? data.desktop
-			: withLivePreferencesDesktop(
-					withLiveNetworksDesktop(
-						desktopWithIdentity(data.desktop, identity),
-						net,
-						m,
-						selectedNetworkId
-					),
-					m,
-					languageValue,
-					data.locale
-				)
-	);
+	const liveHome = $derived.by(() => {
+		if (identity === null) return data.home;
+		let model = withLiveAccounts(homeWithIdentity(data.home, identity), accountsInput, m);
+		model = withLiveNetworks(model, net, m, selectedNetworkId);
+		if (storageReport !== null) model = withLiveStorage(model, storageReport, m);
+		model = withLiveCurrency(model, currency.view);
+		// After the storage numbers: the connections row is the grants', not a key count.
+		model = withLiveConnections(model, grants, m);
+		model = withLivePreferences(model, m, languageValue, data.locale);
+		return withEraseFailure(model, m, eraseFailed);
+	});
+	const liveDesktop = $derived.by(() => {
+		if (identity === null) return data.desktop;
+		let model = withLiveAccountsDesktop(
+			desktopWithIdentity(data.desktop, identity),
+			accountsInput,
+			m
+		);
+		model = withLiveNetworksDesktop(model, net, m, selectedNetworkId);
+		if (storageReport !== null) model = withLiveStorage(model, storageReport, m);
+		return withLivePreferencesDesktop(model, m, languageValue, data.locale);
+	});
 
 	/**
 	 * The one translation table: what the person did → what the core is told.
@@ -412,19 +472,32 @@
 				onnetevent={onNetEvent}
 				onprefevent={onPrefEvent}
 				onchainselect={pickChain}
+				onaccountselect={selectAccount}
+				onaccountcreate={() => void goto(createHref)}
+				onaccountsignin={() => void goto(welcome)}
+				onaccountsopen={accountsOpen}
+				onstorageclear={clearRow}
+				onclearcaches={clearCaches}
 			/>
 		</div>
 	{:else}
-		<SettingsHome
-			model={liveHome}
-			destinations={WEB_DESTINATIONS}
-			onselecttab={selectTab}
-			onsignout={signOut}
-			onnetevent={onNetEvent}
-			oncurrencyselect={(code) => currency.choose(code)}
-			onstorageclear={disconnect}
-			onprefevent={onPrefEvent}
-		/>
+		<main class="page">
+			<SettingsHome
+				model={liveHome}
+				destinations={WEB_DESTINATIONS}
+				onselecttab={selectTab}
+				onsignout={signOut}
+				onnetevent={onNetEvent}
+				oncurrencyselect={(code) => currency.choose(code)}
+				onstorageclear={clearRow}
+				onprefevent={onPrefEvent}
+				onaccountselect={selectAccount}
+				onaccountcreate={() => void goto(createHref)}
+				onaccountsignin={() => void goto(welcome)}
+				onaccountsopen={accountsOpen}
+				onclearcaches={clearCaches}
+			/>
+		</main>
 	{/if}
 {:else}
 	<!-- The core has not ruled yet. An empty surface, not a fixture account. -->
@@ -432,6 +505,18 @@
 {/if}
 
 <style>
+	/* The phone screens are `height: 100%` of whatever holds them, and the
+	   root layout only sets a MIN-height — so without a frame the screen
+	   stood as tall as its own rows, the DOCUMENT scrolled, and the tab bar
+	   scrolled away with it (founder, 2026-09-05). The contacts route frames
+	   its phone the same way. */
+	.page {
+		height: 100dvh;
+		display: flex;
+		flex-direction: column;
+		background: var(--color-bg-base);
+	}
+
 	.waiting {
 		min-height: 100dvh;
 		background: var(--color-bg-base);

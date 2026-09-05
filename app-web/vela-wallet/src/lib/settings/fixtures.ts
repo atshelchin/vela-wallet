@@ -976,7 +976,8 @@ export function buildMobileState(
 			title: m.advanced.networksTitle,
 			subtitle: m.advanced.networksSubtitle,
 			rows: networkRows(m),
-			addLabel: m.advanced.addNetworkTitle
+			addLabel: m.advanced.addNetworkTitle,
+			removeLabel: m.networks.remove
 		},
 		networkDetail: networkDetail(m, state === 'st9b'),
 		addNetwork: addNetwork(m, addMode),
@@ -1143,6 +1144,7 @@ export function buildDesktopState(
 			title: m.advanced.networksTitle,
 			subtitle: m.advanced.networksSubtitle,
 			addLabel: m.advanced.addNetworkTitle,
+			removeLabel: m.networks.remove,
 			// DST4 expands Ethereum in place and drops the built-ins below Base
 			// into the custom tail, which is what the mock shows.
 			rows: networkRows(m, 'ethereum').filter((r) => !['gnosis', 'tempo'].includes(r.id)),
@@ -1151,6 +1153,7 @@ export function buildDesktopState(
 		rpcProviders: rpcProviders(m, true),
 		endpoints: endpoints(m, true),
 		storage: storage(m),
+		clearCachesSheet: clearCachesSheet(m),
 		about: about(m, true),
 		addNetwork: addNetwork(m, 'compatible'),
 		rpcFix: rpcFix(m, false),

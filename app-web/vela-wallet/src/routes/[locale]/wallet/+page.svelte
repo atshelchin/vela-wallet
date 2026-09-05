@@ -28,6 +28,13 @@
 	import WalletHome from '$lib/wallet/WalletHome.svelte';
 	import SignOutSheet from '$lib/session/ui/SignOutSheet.svelte';
 	import IdenticonViewer from '$lib/wallet/ui/IdenticonViewer.svelte';
+	import BottomSheet from '$lib/wallet/ui/BottomSheet.svelte';
+	import Dialog from '$lib/settings/ui/Dialog.svelte';
+	import RpcFixBody from '$lib/settings/ui/RpcFixBody.svelte';
+	import BalanceDetailBody from '$lib/settings/ui/BalanceDetailBody.svelte';
+	import RelayerBody from '$lib/settings/ui/RelayerBody.svelte';
+	import { liveBalanceDetail, liveRelayer, liveRpcFix } from '$lib/settings/live';
+	import { networkAdmin } from '$lib/settings/core/network-admin.svelte';
 	import { BREAKPOINT_DESKTOP } from '$lib/tokens/tokens';
 	import { session } from '$lib/session/core/session.svelte';
 	import { createContactsSession, type ContactsSession } from '$lib/contacts/core/contacts';
@@ -744,7 +751,10 @@
 		// request can arrive while any screen is showing. `syncNetworks` runs
 		// with it — until a snapshot lands every chain is unsupported, which is
 		// the fail-closed default a shell must not leave in place.
-		void signRequest.boot().then(() => signRequest.syncNetworks());
+		void signRequest.boot().then(() => {
+			signRequest.syncNetworks();
+			signRequest.syncAccounts();
+		});
 	});
 
 	/**
@@ -974,6 +984,125 @@
 	function selectTxAt(index: number) {
 		selectedTxId = feedItemAt(feed.view, Math.floor(index / 100), index % 100)?.id ?? null;
 	}
+
+	/**
+	 * The open transaction's delete (spec 028 Phase 8). The feed tombstones the
+	 * record and removes the row at once (`activity_feed`'s `DeleteRequested`),
+	 * so the detail has nothing left to show: the sheet, or the third column,
+	 * steps back to the list it came from.
+	 */
+	function deleteSelectedTx() {
+		if (selectedTxId === null) return;
+		feed.deleteRecord(selectedTxId);
+		selectedTxId = null;
+		nav.back();
+	}
+
+	// --- The rescue sheets (spec 028 Phase 8) -----------------------------------
+	//
+	// 023 drew three rescues as settings components and placed them over the
+	// wallet (SR2 RPC fix, SR3 balance detail) and over the send (SR4 relayer
+	// treasury). The balance status line is their door on this route: an
+	// unreachable chain opens its RPC fix, anything else opens the breakdown.
+	// The treasury sheet opens itself, from the send core's probe.
+	type Rescue = 'rpc-fix' | 'balance-detail' | 'relayer';
+	let rescue = $state<Rescue | null>(null);
+	let rescueChainId = $state<number | null>(null);
+	/** The URL being typed, until it is saved. */
+	let rpcDraft = $state<string | null>(null);
+	/** A save went to the core from this sheet; its probe decides "restored". */
+	let rpcSaved = $state(false);
+	const rm = $derived(data.rescueMessages);
+	const rescueRow = $derived(
+		rescueChainId === null
+			? undefined
+			: networkAdmin.view.networks.find((row) => row.chain_id === rescueChainId)
+	);
+	const rpcFixModel = $derived(
+		rescueRow === undefined
+			? undefined
+			: liveRpcFix({ row: rescueRow, draft: rpcDraft, saved: rpcSaved }, rm)
+	);
+	const rpcRestored = $derived(
+		rpcSaved && rpcDraft === null && rescueRow?.rpc_health?.type === 'ok'
+	);
+	const balanceDetailModel = $derived(liveBalanceDetail(balance.view, currency.view, rm));
+	const relayerModel = $derived(
+		sendView?.treasury_bootstrap ? liveRelayer(sendView.treasury_bootstrap, rm) : undefined
+	);
+	const rescueTitle = $derived(
+		rescue === 'rpc-fix'
+			? rm.rescue.rpcFixTitle
+			: rescue === 'balance-detail'
+				? rm.balanceDetail.title
+				: rm.relayer.title
+	);
+
+	function openRescue() {
+		const failing = balance.view.banner_chain_ids;
+		if (failing.length > 0) {
+			openRpcFix(failing[0]!);
+			return;
+		}
+		rescue = 'balance-detail';
+	}
+
+	function openRpcFix(chainId: number) {
+		rescueChainId = chainId;
+		rpcDraft = null;
+		rpcSaved = false;
+		rescue = 'rpc-fix';
+		// The row's override fields are loaded on expand, as the settings page does.
+		void networkAdmin
+			.boot()
+			.then(() => networkAdmin.dispatch({ type: 'override_expanded', chain_id: chainId }));
+	}
+
+	function closeRescue() {
+		if (rescue === 'relayer') sendSession?.dispatch({ type: 'dismiss_treasury_sheet' });
+		rescue = null;
+	}
+
+	/** Save & Retry, then — once the probe answers — Done. */
+	function rpcFixPrimary() {
+		if (rescueChainId === null) return;
+		if (rpcRestored) {
+			// The chain is reachable again: clear its failure in the balance core
+			// and force a read — the core's own retry is throttled like any other
+			// fetch, and the person just watched the probe succeed.
+			balance.fixChainResolved(rescueChainId);
+			balance.refresh(true);
+			rescue = null;
+			return;
+		}
+		if (rpcDraft !== null) {
+			networkAdmin.dispatch({
+				type: 'override_field_edited',
+				chain_id: rescueChainId,
+				field: 'rpc',
+				value: rpcDraft
+			});
+		}
+		networkAdmin.dispatch({ type: 'override_blurred', chain_id: rescueChainId });
+		rpcDraft = null;
+		rpcSaved = true;
+	}
+
+	function relayerRetry() {
+		sendSession?.dispatch({ type: 'retry_after_bootstrap' });
+		rescue = null;
+	}
+
+	function copyRelayerAddress() {
+		const address = sendView?.treasury_bootstrap?.address;
+		if (address) void navigator.clipboard?.writeText(address).catch(() => {});
+	}
+
+	// The send core says whether the treasury sheet is up; this only mirrors it.
+	$effect(() => {
+		if (sendView?.treasury_bootstrap) rescue = 'relayer';
+		else if (rescue === 'relayer') rescue = null;
+	});
 </script>
 
 <svelte:head>
@@ -1014,6 +1143,7 @@
 				identiconViewerLabel={data.walletMessages.identiconViewer.a11yOpen}
 				onflow={enter}
 				onbalancetoggle={() => balance.togglePrivacy()}
+				onstatus={openRescue}
 				onchainselect={(row) => chainFilter.select(row.chainId ?? null)}
 				onasset={(row) => {
 					nav.close();
@@ -1066,6 +1196,7 @@
 					addToken={addTokenActions}
 					send={sendActions}
 					batch={batchActions}
+					ondeletetx={deleteSelectedTx}
 				/>
 			{/if}
 		</div>
@@ -1086,55 +1217,62 @@
 				</div>
 			</div>
 		{/if}
-	{:else if flowState !== undefined}
-		<FlowsMobile
-			model={withLiveTxDetailMobile(withLiveFlow(data.flows[flowState], flowInputs), txDetail)}
-			onback={() => {
-				// Backing out of the scanner is closing the scanner, not stepping
-				// back a stage — the core opened it and the core closes it.
-				if (sendView?.show_scanner) sendSession?.dispatch({ type: 'close_scanner' });
-				else if (sendView?.show_contact_picker)
-					sendSession?.dispatch({ type: 'close_contact_picker' });
-				else if (sendView) sendSession?.dispatch({ type: 'back' });
-				else nav.back();
-			}}
-			onnavigate={(to, index) => {
-				if (to === 'tx-detail' && index !== undefined) selectTxAt(index);
-				if (to === 'fee-token') feeSheetOpen = true;
-				else if (to === 'batch-import') void openBatch();
-				else if (to === 'scan' && sendSession) sendSession.dispatch({ type: 'open_scanner' });
-				else if (to === 'contact-pick' && sendSession)
-					sendSession.dispatch({ type: 'open_contact_picker', target: null });
-				else if (to === 'add-token') {
-					nav.push(to);
-					void openAddToken();
-				} else nav.push(to);
-			}}
-			onsheetclose={() => {
-				// The sheet was a pushed step; dismissing it pops the step, so the
-				// next tap on "add by address" pushes a fresh one.
-				if (nav.mobileTop === 't3') {
-					closeAddToken();
-					nav.back();
-				}
-				if (sendView?.show_contact_picker) sendSession?.dispatch({ type: 'close_contact_picker' });
-			}}
-			send={sendActions}
-			batch={batchActions}
-			scan={{ feed: scanFeed, notice: scanCopy, tool: scanTool }}
-			addToken={addTokenActions}
-		/>
 	{:else}
-		<WalletHome
-			model={liveHome}
-			destinations={WEB_DESTINATIONS}
-			onselect={select}
-			onidenticon={() => (viewing = true)}
-			identiconViewerLabel={data.walletMessages.identiconViewer.a11yOpen}
-			onflow={enter}
-			onbalancetoggle={() => balance.togglePrivacy()}
-			onactivity={(row) => (selectedTxId = row.id ?? null)}
-		/>
+		<main class="page">
+			{#if flowState !== undefined}
+				<FlowsMobile
+					model={withLiveTxDetailMobile(withLiveFlow(data.flows[flowState], flowInputs), txDetail)}
+					onback={() => {
+						// Backing out of the scanner is closing the scanner, not stepping
+						// back a stage — the core opened it and the core closes it.
+						if (sendView?.show_scanner) sendSession?.dispatch({ type: 'close_scanner' });
+						else if (sendView?.show_contact_picker)
+							sendSession?.dispatch({ type: 'close_contact_picker' });
+						else if (sendView) sendSession?.dispatch({ type: 'back' });
+						else nav.back();
+					}}
+					onnavigate={(to, index) => {
+						if (to === 'tx-detail' && index !== undefined) selectTxAt(index);
+						if (to === 'fee-token') feeSheetOpen = true;
+						else if (to === 'batch-import') void openBatch();
+						else if (to === 'scan' && sendSession) sendSession.dispatch({ type: 'open_scanner' });
+						else if (to === 'contact-pick' && sendSession)
+							sendSession.dispatch({ type: 'open_contact_picker', target: null });
+						else if (to === 'add-token') {
+							nav.push(to);
+							void openAddToken();
+						} else nav.push(to);
+					}}
+					onsheetclose={() => {
+						// The sheet was a pushed step; dismissing it pops the step, so the
+						// next tap on "add by address" pushes a fresh one.
+						if (nav.mobileTop === 't3') {
+							closeAddToken();
+							nav.back();
+						}
+						if (sendView?.show_contact_picker)
+							sendSession?.dispatch({ type: 'close_contact_picker' });
+					}}
+					send={sendActions}
+					batch={batchActions}
+					scan={{ feed: scanFeed, notice: scanCopy, tool: scanTool }}
+					addToken={addTokenActions}
+					ondeletetx={deleteSelectedTx}
+				/>
+			{:else}
+				<WalletHome
+					model={liveHome}
+					destinations={WEB_DESTINATIONS}
+					onselect={select}
+					onidenticon={() => (viewing = true)}
+					identiconViewerLabel={data.walletMessages.identiconViewer.a11yOpen}
+					onflow={enter}
+					onbalancetoggle={() => balance.togglePrivacy()}
+					onstatus={openRescue}
+					onactivity={(row) => (selectedTxId = row.id ?? null)}
+				/>
+			{/if}
+		</main>
 	{/if}
 {:else}
 	<!-- The core has not ruled yet. An empty surface, not a fixture wallet. -->
@@ -1159,7 +1297,57 @@
 	/>
 {/if}
 
+<!-- The rescue sheets (spec 028 Phase 8): a sheet on the phone, a dialog on the desktop. -->
+{#snippet rescueBody()}
+	{#if rescue === 'rpc-fix' && rpcFixModel !== undefined}
+		<RpcFixBody
+			panel={rpcFixModel}
+			onprimary={rpcFixPrimary}
+			onfield={(value) => (rpcDraft = value)}
+		/>
+	{:else if rescue === 'balance-detail'}
+		<BalanceDetailBody
+			panel={balanceDetailModel}
+			onretry={(id) => {
+				balance.fixChainResolved(Number(id));
+				balance.refresh(true);
+			}}
+		/>
+	{:else if rescue === 'relayer' && relayerModel !== undefined}
+		<RelayerBody panel={relayerModel} onprimary={relayerRetry} oncopy={copyRelayerAddress} />
+	{/if}
+{/snippet}
+
+{#if rescue !== null && identity}
+	{#if wide.current}
+		<Dialog title={rescueTitle} closeLabel={rm.common.close} onclose={closeRescue}>
+			{@render rescueBody()}
+		</Dialog>
+	{:else}
+		<BottomSheet
+			title={rescueTitle}
+			closeLabel={rm.common.close}
+			height="tall"
+			onclose={closeRescue}
+		>
+			{@render rescueBody()}
+		</BottomSheet>
+	{/if}
+{/if}
+
 <style>
+	/* The phone screens are `height: 100%` of whatever holds them, and the
+	   root layout only sets a MIN-height — so without a frame the screen
+	   stood as tall as its own rows, the DOCUMENT scrolled, and the tab bar
+	   scrolled away with it (founder, 2026-09-05). The contacts route frames
+	   its phone the same way. */
+	.page {
+		height: 100dvh;
+		display: flex;
+		flex-direction: column;
+		background: var(--color-bg-base);
+	}
+
 	.waiting {
 		min-height: 100dvh;
 		background: var(--color-bg-base);

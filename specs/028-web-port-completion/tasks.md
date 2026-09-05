@@ -151,6 +151,54 @@ rules in the core (results.md Phase 6b):
 - [X] T462 Close results.md: SC-401…410 verdicts, deviations, 029 handoff
 - [X] T463 Final sanity: all gates + `gen-core-types --check` (isolated worktree: 181/1/0)
 
+## Phase 8: Replacing the Expo web — the six gaps the audit named (2026-09-05)
+
+The founder's ask, after the closeout: "都完成掉，然后我要替换掉 expo web".
+An audit of app-web against the Expo web (receive, send, add network, every
+setting, displayed-equals-signed, account switching, activity list/detail)
+found six gaps. Each is one task, each has its own proof, and the phase is
+commits 8a–8c on this branch.
+
+- [X] T470 [SC-304] The extension signing chain: `approve_tapped` reached the
+      machine and nothing signed. Root cause: the web resident never sent
+      `accounts_changed`, so `approve_with` found no signer and returned
+      `Command::done()` (Expo's `setSignAccounts` had no web twin). Fix:
+      `syncAccounts` on boot, on every session change, and inside the
+      account-switch ack; the `test.fixme` is a `test` again and passes.
+- [X] T471 [US-accounts] The account switcher is live on both widths: the
+      session's rows, the balance core's switcher totals (`switcher_opened`),
+      a tap is `SwitchAccount` in the session's domain, and the two buttons
+      leave for create / sign-in. `accounts.e2e.ts`.
+- [X] T472 [displayed = signed] A second implementation checks the shell's
+      assembly before every passkey prompt: 032's `user_op.rs` is on this
+      branch, the wasm exports `attestSafeOpHash` / `attestSafeMessageHash`,
+      and `sign-attest.ts` refuses a calldata that is not the shown calls, a
+      fee leg that is not the shown fee, a hash the core does not reproduce,
+      and an assertion over any other challenge. Wired at the three SafeOp
+      sign sites and the three message sites. `sign-attest.test.ts` +
+      21 Rust vectors.
+- [X] T473 [add network] The e2e 024's SC-001 named and did not have:
+      search → verdict (11 contracts + P-256, stubbed) → add → listed as custom
+      → survives a reload → removed. `add-network.e2e.ts`.
+- [X] T474 [storage] "Clear all caches" clears (`device-storage.ts`: every key
+      classified into the three drawn groups; the cache group is exactly the
+      sweep), each user-data row's Clear clears its own keys, and the storage
+      page's headline, bar and meta lines are measured, not fixture figures.
+      `device-storage.test.ts`.
+- [X] T475 [rescue] The three drawn rescues open where 023 placed them: the
+      balance status line opens SR2 (RPC fix — save, probe, restored, Done →
+      `fix_chain_resolved`) for an unreachable chain and SR3 (balance by
+      network) otherwise; the send core's `treasury_bootstrap` opens SR4
+      (relayer treasury, real code, copy, retry). Phone sheet / desktop dialog.
+      `home-truth.e2e.ts` (RPC fix).
+- [X] T476 [activity] The detail's "Delete record" (a new corpus word,
+      `history.deleteRecord`, 15 locales): `activity_feed`'s `DeleteRequested`
+      tombstones the record, the row leaves at once, a reload does not bring
+      it back. `activity-delete.e2e.ts`.
+- [X] T477 Gates: `pnpm check` · `pnpm lint` · unit · corpus six steps · cargo
+      `user_op` · wasm rebuilt (+48 KB, new fingerprint) · e2e on the isolated
+      4174 preview, three engines.
+
 ## Dependencies
 
 Phase 2 blocks 3 (the decode round trip needs something real to decode) and is

@@ -60,6 +60,7 @@ export const WALLET_FLOW_KEYS = [
 	'history.labelReceived',
 	'history.txLabelSent',
 	'history.txLabelReceived',
+	'history.deleteRecord',
 	'history.toName',
 	'history.fromName',
 	'history.viewOnExplorer',

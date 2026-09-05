@@ -1071,3 +1071,219 @@ this feature's stated precondition and not its task.
 
 **Open at close**: T461 (a human with a phone, five steps above). SC-408
 closed in Phase 6b. Everything else this feature named is done and measured.
+
+
+---
+
+## Phase 8 — Replacing the Expo web: the six gaps (2026-09-05)
+
+The founder's ask after the closeout: an audit of app-web against the Expo
+web, then "都完成掉，然后我要替换掉 expo web". The audit (this session,
+grounded in 024–028's results and the source) rated seven areas: receive,
+send and activity were live with real-network evidence; add network had no
+end-to-end; three settings buttons were dead; the account switcher was a
+picture; displayed-equals-signed had no cross-check; and the extension
+signing path was broken at SC-304. Six gaps, six tasks (T470–T476), one
+branch, no new spec directory — the founder wanted it on 028.
+
+### T470 — SC-304, met: the machine had no signers
+
+027 measured everything up to the silence: the slide committed, the gate was
+open, `approve_tapped` reached the resident, `navigator.credentials.get` was
+never called. The cause was one missing event. `sign_request`'s
+`approve_with` does
+
+```rust
+let Some(signer) = model.accounts.get(model.active_index as usize).cloned() else {
+    return Command::done();
+};
+```
+
+and on the web nothing ever dispatched `accounts_changed`, so `model.accounts`
+was empty for the life of the page. Expo's resident fed the rows from the
+wallet provider (`setSignAccounts`, `src/services/wallet-state-core/sign-resident.ts:442`);
+the port dropped it because the web has no provider — the session is
+app-resident state. The fix is `SignRequest.syncAccounts()`
+(`sign-resident.svelte.ts`): the session's rows as `{address, credential_id}`
+plus the active position, deduped by a key, dispatched on boot, from an
+`$effect.root` on the session view, and — synchronously, on the loop, not a
+microtask later — inside the `switchActiveAccount` ack, because the machine
+reads its own rows at `active_index` the moment the ack lands. The two pages
+that hand requests in (`request/+page.svelte`, `wallet/+page.svelte`) call it
+beside `syncNetworks()`.
+
+Proof: `extension-signing.e2e.ts` — the `test.fixme` is a `test`; the four
+tests pass on the isolated preview (5.0 min including the build). The
+SC-304 assertion is unchanged: the dApp receives an EIP-191 signature over
+100 hex characters, made by the account's own key.
+
+### T472 — displayed = signed, by a second implementation
+
+The audit's honest finding: what a passkey signs is 32 bytes it cannot show,
+and between the core's confirm view and those bytes sat the shell's
+TypeScript assembly with nothing checking it. Now three checks stand before
+and after every passkey prompt (`services/sign-attest.ts`):
+
+1. **The calldata is the calls that were shown.** 032's `user_op.rs` (the
+   desktop's Rust assembly, with its 21 vectors) is on this branch, and the
+   wasm exports `attestSafeOpHash(op, calls, chainId)`: the core rebuilds the
+   MultiSend from the inner calls and the fee leg's INPUTS (token, recipient,
+   amount — so a changed recipient is caught, not only changed bytes) and
+   refuses if the shell's `callData` differs.
+2. **The hash is the core's hash.** The SafeOp EIP-712 hash the shell
+   computed must equal the core's to the byte; the message path likewise
+   (`attestSafeMessageHash`, the `SafeMessage(bytes)` digest).
+3. **The assertion is over that hash.** `clientDataJSON` must be a
+   `webauthn.get` whose challenge decodes to exactly those bytes — a swapped
+   override or a broken bridge cannot substitute a challenge.
+
+Wired at the three SafeOp sign sites (`sendUserOp`, `sendUserOpTempo`,
+`sendUserOpInBand`) and the three message sites in `dapp-submit.ts`. Any
+disagreement throws `SignAttestError`; nothing is signed or submitted.
+
+What this does NOT claim: a shell that is itself malicious can skip the
+check. The trust model is unchanged — you trust the JavaScript getvela.app
+serves — but a drift, a bad port, a wrong constant or a tampered bridge now
+fails closed instead of signing something other than the screen.
+
+Proof: `sign-attest.test.ts` (the shell and the core hash one operation
+identically; a tampered calldata, a smaller fee, another relay, another
+chain's hash and another challenge are each refused) and the 21 `user_op`
+vectors under `cargo test -p vela-core --features i18n-all,crux user_op`.
+`send-lands`, `sweep`, `batch` and `desktop-send` still pass — the two
+implementations agree on every operation those suites sign.
+
+### T471 — the account switcher is live
+
+`identity.ts` said it plainly: everything but the active row's name was the
+fixture layer, and `AccountsSheetBody` had no handlers. Now
+`withLiveAccounts` / `withLiveAccountsDesktop` (`settings/live.ts`) fill the
+sheet from the session's rows; the totals come from the balance core's own
+switcher (`switcher_opened` with every address — the policy Expo's
+`AccountSwitcherModal` sourced from, already in `balance_dashboard`), with
+the live total standing in for the active account; a tap is
+`session.switchAccount(row.index)` in the session's domain, which persists
+the index; "Create New Account" leaves for `/create` and "Sign In with
+Existing" for Welcome (both end in `CompletionMode::AddAccount`, which
+appends and activates). Proof: `accounts.e2e.ts` — two seeded accounts, the
+second chosen, the header renamed, a reload keeping it, the wallet route
+agreeing; and the two buttons landing on their routes.
+
+### T473 — add network, end to end
+
+`add-network.e2e.ts` stubs the search index (one entry), the chain document,
+the RPC race, the eleven required contracts (`eth_getCode` → deployed) and
+the P-256 precompile (`eth_call` → one), and drives: query "10" → suggestion
+→ "Compatible" → "Add Network" → the networks page lists it as Custom → a
+reload still lists it → its row's remove → gone, and still gone after a
+reload. The wizard, the verdict and the registry are the core's; the test
+touches only what a person does.
+
+### T474 — the storage page clears what it says, and says what it holds
+
+`services/device-storage.ts` classifies every key of ours (both stores: the
+`vela.` namespace in `localStorage` and the IndexedDB `kv`) into the three
+drawn groups by row: transactions, contacts, custom tokens/networks and
+browsing are "your data"; balances, rates and the scan caches (token
+metadata, identity lookups, RPC bans) are "cache"; grants, requests and the
+extension snapshot are "sessions"; anything unnamed is your data, so a sweep
+can never take it. "Clear all caches" is exactly the cache group plus the
+memory caches beside it; each user-data row's Clear is its own key list; the
+dApp row stays `dapp_permissions`' (027). The page's headline, bar and meta
+lines are measured (`withLiveStorage`) on entry and after every clear.
+Proof: `device-storage.test.ts`.
+
+### T475 — the rescues open where they were drawn
+
+023 drew SR2/SR3 over the wallet and SR4 over the send, as settings
+components; the audit found their models fixture and their entries absent.
+Now the balance status line (`BalanceDisplay`'s `onstatus`, threaded through
+both wallet surfaces) opens SR2 for the first unreachable chain — the row's
+override is expanded, the typed URL saved and blurred (the core probes it,
+refuses a chain-id mismatch, stores the override, invalidates the pools),
+the sheet turns restored on a healthy probe, and Done sends
+`fix_chain_resolved` so the balance core retries that chain alone — and SR3
+otherwise (`liveBalanceDetail`: rate-limited chains retrying, unreachable
+chains with a retry, settled chains largest first, the hero's own figures).
+The send core's `treasury_bootstrap` opens SR4 (`liveRelayer`: the
+treasury's real address as a real code, the shortfall in the asset's units,
+copy, and "I've funded it" → `retry_after_bootstrap`; dismiss →
+`dismiss_treasury_sheet`). Phone: a bottom sheet; desktop: the settings
+Dialog. Proof: `home-truth.e2e.ts` — the dead endpoint's status line, the
+sheet naming Ethereum, a working URL saved, the restored callout, Done, the
+status line gone and the balance back.
+
+### T476 — a record can be deleted
+
+Expo had swipe-to-delete with a tombstone and the web detail had no way to
+say it. `TxDetailModel.deleteLabel` (live only — the drawn fixtures stay
+pictures) renders a danger button; `ondeletetx` threads through
+`FlowsPanel` / `FlowsMobile`; the route calls `feed.deleteRecord(id)` —
+`activity_feed`'s `DeleteRequested`, an optimistic remove plus a tombstone,
+then `DeleteTxRecord` — and steps the sheet or column back to the list. One
+new corpus word, `history.deleteRecord`, in 15 locales (Expo had none: the
+row simply went). Proof: `activity-delete.e2e.ts` — a seeded confirmed send,
+its detail's delete, the row gone at once, the store without it, a reload
+without it.
+
+### Budgets, restated
+
+- **Corpus**: +1 leaf (`history.deleteRecord`) → 1,627 paths / 1,543 leaves;
+  22,863 leaves across 15 locales; lint, verify and the 50,000 fuzzed bundles
+  green; vectors regenerated.
+- **The core artifact**: 3,675,329 B (6c) → **3,723,773 B**
+  (`vela_core_bg.1e2d3a9eabc8.wasm`), +48,444 B for `user_op` (1,156 lines,
+  the desktop's), the two attest bindings and the one word. Under the
+  4,000,000 ceiling; the fingerprint test reads what is served.
+- **Nothing new on Welcome**: the attest module is imported only by the
+  money path; the rescue bodies only by the wallet route.
+
+### Deviations, each with its reason
+
+1. **No new spec directory.** The founder said "就在当前分支里干"; the six
+   gaps are Phase 8 of 028, in this file and `tasks.md`.
+2. **`calculateSafeOpHash` is exported** so the test can pin the shell's hash
+   against the core's; nothing else imports it.
+3. **The rescue sheets use the settings corpus on the wallet route** — a
+   `pickRescueMessages` slice ships with the page, not the whole table.
+4. **The storage page's user-data clears are one tap**, as drawn; they clear
+   raw stores, and a contacts screen open in another tab reads the change on
+   its next boot, not live.
+5. **`user_op.rs` is a verbatim copy of 032's**, not a merge: the desktop
+   branch owns it; when 032 lands, git sees one file.
+
+### Gates (T477) — at the branch's last commit by this session
+
+- `pnpm check`: gen-tokens, sync-wasm (`vela_core_bg.1e2d3a9eabc8.wasm`,
+  3,723,773 B) and `gen-core-types --check` current; svelte-check **1,414
+  files / 0 errors**.
+- `pnpm lint`: Prettier and ESLint green (one `svelte/prefer-svelte-reactivity`
+  finding on the settings page, fixed with `SvelteMap`).
+- Unit: **65 files / 885 tests** on both vitest projects, including
+  `sign-attest.test.ts` and `device-storage.test.ts`; the root jest i18n
+  suites 75/75 with the leaf pin at 22,863.
+- Corpus: gen:i18n (1,627 paths / 1,543 leaves), lint:i18n (no new defects),
+  verify:i18n (73,145 comparisons, zero divergences), vectors regenerated.
+- Rust: `cargo test -p vela-core --features i18n-all,crux user_op` — 21 passed.
+- e2e, isolated 4174 preview, `--workers=2`, chromium + firefox + webkit:
+  **193 passed / 0 skipped / 0 failed in 3.5 minutes** — 12 more tests than
+  the closeout's 181, and the one `fixme` gone. A first attempt of the same
+  run failed 48 with "could not connect to the server": the preview had died
+  under four gates running beside it and eight orphaned `workerd` processes
+  (hours old, parent 1) from earlier sessions. Killed the orphans, ran the
+  suite alone, and it was green — the 026/027 lesson, measured a third time:
+  the preview is one process, and it does not share.
+
+### Three findings from the e2e, kept as facts
+
+1. **A chain the wizard already has is refused, not re-added** — the first
+   draft of `add-network.e2e.ts` asked for Optimism (chain 10), a built-in,
+   and the core answered `AlreadyAdded`. Linea (59144) is the test's chain.
+2. **The custom row's delete control was named "Add Network."** `NetworkRow`'s
+   `deleteLabel` borrowed `networks.addLabel` since 023, so a screen reader
+   heard two "Add Network" buttons, one of which removes the network. It now
+   says `settingsModals.network.removeTitle` ("Remove Network") on both
+   widths — a new field, `networks.removeLabel`, on both settings models.
+3. **`fix_chain_resolved` alone does not re-read.** The balance core's retry
+   is a throttled fetch like any other; Done and the breakdown's retry now
+   also force a refresh, and the RPC-fix e2e watches the balance come back.

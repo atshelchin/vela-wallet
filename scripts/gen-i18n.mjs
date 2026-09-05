@@ -257,8 +257,8 @@ for (let i = 1; i < PATHS.length; i++) {
 // + 1 more (spec 028 US5, 6c): `contacts.batchSendNeedsMembers` — the group
 //   send's disabled CTA had no words for WHY (an empty group); the founder
 //   asked for the hint.
-if (PATHS.length !== 1626) fail(`expected 1626 paths (1542 leaf + 84 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1542) fail(`expected 1542 leaf paths, got ${leafSet.size}`);
+if (PATHS.length !== 1627) fail(`expected 1627 paths (1543 leaf + 84 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1543) fail(`expected 1543 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 84) fail(`expected 84 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

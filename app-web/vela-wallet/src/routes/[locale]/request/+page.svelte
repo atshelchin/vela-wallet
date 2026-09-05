@@ -120,6 +120,7 @@
 	async function handOffToSigning(incoming: ExtensionRequest, grantedAddress: string) {
 		await signRequest.boot();
 		signRequest.syncNetworks();
+		signRequest.syncAccounts();
 		const transportId = signRequest.registerTransport({
 			sendResponse: (_id, result, error) => {
 				owing = null;

@@ -11,6 +11,23 @@
 
 import { fill } from '$lib/wallet/messages';
 import { shortenAddress } from '$lib/wallet/identity';
+import { moneyText } from '$lib/wallet/live';
+import type { SessionAccountRow } from '$lib/core/generated/SessionAccountRow';
+import {
+	formatBytes,
+	GROUP_OF_ITEM,
+	STORAGE_ITEM_IDS,
+	type DeviceStorageReport,
+	type StorageItemId
+} from '$lib/services/device-storage';
+import type { BalanceView } from '$lib/core/generated/BalanceView';
+import type { SendTreasuryStatus } from '$lib/core/generated/SendTreasuryStatus';
+import { chainName } from '$lib/services/networks';
+import { chainMeta as chainInfo } from '$lib/services/chains';
+import { TEMPO_FEE_TOKEN_DECIMALS } from '$lib/services/tempo';
+import { encodeQr } from '$lib/wallet/qr';
+import { MASK } from '$lib/wallet/fixtures';
+import { trimBalance } from '$lib/wallet/live';
 import type { NetChainIndexEntry } from '$lib/core/generated/NetChainIndexEntry';
 import type { NetNetworkRow } from '$lib/core/generated/NetNetworkRow';
 import type { NetProbeHealth } from '$lib/core/generated/NetProbeHealth';
@@ -33,7 +50,10 @@ import { chainMeta, languageRows, markFor } from './fixtures';
 import type { SettingsMessages } from './messages';
 import type {
 	AddNetworkModel,
+	BalanceDetailModel,
 	ChainMarkModel,
+	RelayerModel,
+	RpcFixModel,
 	SettingsDesktopModel,
 	CheckItemModel,
 	EndpointsModel,
@@ -709,5 +729,387 @@ export function withEraseFailure(
 			...model.eraseSheet,
 			callout: { tone: 'danger', text: m.erase.failed }
 		}
+	};
+}
+
+// ---------------------------------------------------------------------------
+// The account switcher (spec 028 Phase 8) — the session's rows, the balance
+// core's totals.
+// ---------------------------------------------------------------------------
+
+export interface LiveAccountsInput {
+	/** The session's own rows, in the session's order (`SwitchAccount.index`). */
+	rows: SessionAccountRow[];
+	activeIndex: number;
+	/** Per-account totals in USD by lowercased address — the balance core's switcher cache. */
+	balances: ReadonlyMap<string, number>;
+	currency: CurrencyView;
+	identicon: (address: string, name: string) => string;
+}
+
+function liveAccountRows(input: LiveAccountsInput) {
+	return input.rows.map((row, position) => {
+		const usd = input.balances.get(row.account.address.toLowerCase());
+		return {
+			name: row.account.name,
+			addressDisplay: shortenAddress(row.account.address),
+			identiconSvg: input.identicon(row.account.address, row.account.name),
+			// No cached total yet: an empty cell, never a mocked figure.
+			amount: usd === undefined ? '' : moneyText(usd, input.currency),
+			selected: position === input.activeIndex
+		};
+	});
+}
+
+/** "3 accounts · $3,262.40 total" over what is actually known. */
+function liveAccountsSummary(input: LiveAccountsInput, m: SettingsMessages): string {
+	let total = 0;
+	for (const row of input.rows) total += input.balances.get(row.account.address.toLowerCase()) ?? 0;
+	return `${fill(m.accounts.countPrefix, { count: input.rows.length })}${fill(m.accounts.total, {
+		amount: moneyText(total, input.currency)
+	})}`;
+}
+
+/**
+ * The phone's account sheet (ST2), live: every account this browser is signed
+ * into, the active one checked, each with the total the balance core has
+ * cached for it. The rows were fixture data until now — `identity.ts` swapped
+ * only the active row's name and address, and a tap did nothing.
+ */
+export function withLiveAccounts(
+	model: SettingsHomeModel,
+	input: LiveAccountsInput,
+	m: SettingsMessages
+): SettingsHomeModel {
+	return {
+		...model,
+		accountsSheet: {
+			...model.accountsSheet,
+			summary: liveAccountsSummary(input, m),
+			rows: liveAccountRows(input)
+		}
+	};
+}
+
+/** DST1's account page, likewise. */
+export function withLiveAccountsDesktop(
+	model: SettingsDesktopModel,
+	input: LiveAccountsInput,
+	m: SettingsMessages
+): SettingsDesktopModel {
+	return {
+		...model,
+		account: {
+			...model.account,
+			summary: liveAccountsSummary(input, m),
+			rows: liveAccountRows(input)
+		}
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Device storage (spec 028 Phase 8) — what is actually held, per drawn row.
+// ---------------------------------------------------------------------------
+
+function sizeText(bytes: number): string {
+	const { amount, unit } = formatBytes(bytes);
+	return `${amount} ${unit}`;
+}
+
+/** The row's meta line: the fixture's own shape, with the measured figures. */
+function storageItemMeta(
+	id: StorageItemId,
+	report: DeviceStorageReport,
+	m: SettingsMessages
+): string {
+	const item = report.items[id];
+	const size = sizeText(item.bytes);
+	switch (id) {
+		case 'transactions':
+		case 'browsing':
+			return `${fill(m.storage.records, { count: item.count })} · ${size}`;
+		case 'contacts':
+			return `${fill(m.storage.contactsCount, { count: item.count })} · ${size}`;
+		case 'custom':
+			return `${fill(m.storage.itemsCount, { count: item.count })} · ${size}`;
+		case 'dapps':
+			return fill(m.storage.sitesCount, { count: item.count });
+		default:
+			return size;
+	}
+}
+
+/**
+ * ST13 / DST7 with this device's numbers: the headline, the bar's shares and
+ * every row's meta line come from `measureDeviceStorage`. The connections
+ * row keeps what `withLiveConnections` wrote (the grants are its), so this
+ * runs before it.
+ */
+export function withLiveStorage<M extends { storage: SettingsHomeModel['storage'] }>(
+	model: M,
+	report: DeviceStorageReport,
+	m: SettingsMessages
+): M {
+	const { amount, unit } = formatBytes(report.totalBytes);
+	const total = report.totalBytes;
+	const share = (bytes: number) => (total === 0 ? 0 : bytes / total);
+	const segmentGroup: Record<string, 'user' | 'cache' | 'sessions'> = {
+		user: 'user',
+		cache: 'cache',
+		sessions: 'sessions'
+	};
+	const isItem = (id: string): id is StorageItemId =>
+		(STORAGE_ITEM_IDS as readonly string[]).includes(id);
+	return {
+		...model,
+		storage: {
+			...model.storage,
+			amount,
+			unit,
+			summary: fill(m.storage.summary, { count: report.keyCount }),
+			segments: model.storage.segments.map((segment) => {
+				const group = segmentGroup[segment.id];
+				return group === undefined
+					? segment
+					: { ...segment, fraction: share(report.groups[group]) };
+			}),
+			groups: model.storage.groups.map((group) => ({
+				...group,
+				items: group.items.map((item) =>
+					isItem(item.id) && GROUP_OF_ITEM[item.id] !== 'sessions'
+						? { ...item, meta: storageItemMeta(item.id, report, m) }
+						: item
+				)
+			}))
+		}
+	};
+}
+
+// ---------------------------------------------------------------------------
+// The rescue sheets (spec 028 Phase 8): SR2 RPC fix and SR3 balance detail
+// over the wallet, SR4 relayer treasury over the send. Drawn as settings
+// components; every figure here is the core's, every word the corpus's.
+// ---------------------------------------------------------------------------
+
+/** The slice of the settings corpus the wallet route's rescues speak. */
+export interface RescueMessages {
+	rescue: SettingsMessages['rescue'];
+	balanceDetail: SettingsMessages['balanceDetail'];
+	relayer: SettingsMessages['relayer'];
+	networks: Pick<
+		SettingsMessages['networks'],
+		'chainId' | 'online' | 'slow' | 'offline' | 'mismatch'
+	>;
+	addNetwork: Pick<SettingsMessages['addNetwork'], 'checkingCompatibility'>;
+	common: Pick<SettingsMessages['common'], 'done' | 'close'>;
+}
+
+/** Only what the sheets read, so the wallet page carries no more corpus than it needs. */
+export function pickRescueMessages(m: SettingsMessages): RescueMessages {
+	return {
+		rescue: m.rescue,
+		balanceDetail: m.balanceDetail,
+		relayer: m.relayer,
+		networks: {
+			chainId: m.networks.chainId,
+			online: m.networks.online,
+			slow: m.networks.slow,
+			offline: m.networks.offline,
+			mismatch: m.networks.mismatch
+		},
+		addNetwork: { checkingCompatibility: m.addNetwork.checkingCompatibility },
+		common: { done: m.common.done, close: m.common.close }
+	};
+}
+
+/** Where a working endpoint comes from — the drawn four. */
+const RPC_PROVIDER_LINKS = [
+	{ label: 'Alchemy', href: 'https://alchemy.com' },
+	{ label: 'QuickNode', href: 'https://quicknode.com' },
+	{ label: 'dRPC', href: 'https://drpc.org' },
+	{ label: 'Chainlist', href: 'https://chainlist.org' }
+];
+
+function rescueMark(chainId: number): ChainMarkModel {
+	return chainMark('', chainName(chainId), chainId);
+}
+
+function rescueLatencyPill(ms: number, m: RescueMessages): StatusPillModel {
+	return {
+		tone: ms >= 1000 ? 'warn' : 'ok',
+		label: ms >= 1000 ? `${m.networks.slow} · ${(ms / 1000).toFixed(1)}s` : `${ms}ms`,
+		dot: true
+	};
+}
+
+export interface LiveRpcFixInput {
+	row: NetNetworkRow;
+	/** The URL being typed, until it is saved. */
+	draft: string | null;
+	/** A save went to the core from this sheet; its probe then decides "restored". */
+	saved: boolean;
+}
+
+/**
+ * SR2 for one network. Failing until a URL saved HERE probes healthy — the
+ * row's stored health alone does not restore it, because the sheet opened
+ * on a chain the balance core could not read.
+ */
+export function liveRpcFix(input: LiveRpcFixInput, m: RescueMessages): RpcFixModel {
+	const { row, draft, saved } = input;
+	const health = row.rpc_health;
+	const settled = saved && draft === null;
+	const restored = settled && health !== null && health.type === 'ok';
+	const checking = settled && health !== null && health.type === 'checking';
+	const mismatch = row.rpc_chain_mismatch;
+
+	let badge: StatusPillModel;
+	if (health !== null && health.type === 'ok' && restored) {
+		badge = rescueLatencyPill(health.latency_ms, m);
+	} else if (checking) {
+		badge = { tone: 'neutral', label: m.addNetwork.checkingCompatibility, dot: true };
+	} else {
+		badge = { tone: 'error', label: m.networks.offline, dot: true };
+	}
+
+	return {
+		title: m.rescue.rpcFixTitle,
+		mark: chainMark(row.id, row.display_name, row.chain_id),
+		name: row.display_name,
+		meta: `${fill(m.networks.chainId, { chainId: row.chain_id })} · ${row.native_symbol}`,
+		badge,
+		callout:
+			mismatch !== null
+				? {
+						tone: 'danger',
+						text: fill(m.networks.mismatch, {
+							reported: mismatch.reported_chain_id,
+							expected: mismatch.expected_chain_id
+						})
+					}
+				: restored
+					? { tone: 'success', text: m.rescue.rpcFixRestored, icon: 'check' }
+					: { tone: 'warning', text: m.rescue.rpcFixWarning },
+		field: {
+			id: 'rpc',
+			label: m.rescue.rpcFixLabel,
+			value: draft ?? row.rpc_url,
+			badge: restored ? badge : undefined,
+			tone: restored ? 'success' : 'error'
+		},
+		primary: restored ? m.common.done : m.rescue.rpcFixSaveBtn,
+		providersLabel: restored ? undefined : m.rescue.rpcProvidersTitle,
+		providers: restored ? undefined : RPC_PROVIDER_LINKS,
+		report: restored ? undefined : m.rescue.rpcReport
+	};
+}
+
+/**
+ * SR3: the balance by network — the chains still being read (rate-limited,
+ * quietly retrying) or unreachable (with a retry), and the chains that
+ * settled, largest first. The same figures the hero sums.
+ */
+export function liveBalanceDetail(
+	view: BalanceView,
+	currency: CurrencyView,
+	m: RescueMessages
+): BalanceDetailModel {
+	const pending: BalanceDetailModel['pending'] = view.rate_limited_chain_ids.map((id) => ({
+		id: String(id),
+		mark: rescueMark(id),
+		name: chainName(id),
+		status: m.balanceDetail.statusRetrying,
+		tone: 'neutral'
+	}));
+	for (const id of view.banner_chain_ids) {
+		if (pending.some((row) => row.id === String(id))) continue;
+		pending.push({
+			id: String(id),
+			mark: rescueMark(id),
+			name: chainName(id),
+			status: m.balanceDetail.statusFailed,
+			tone: 'error',
+			action: m.balanceDetail.retry
+		});
+	}
+
+	const perChain = new Map<number, number>();
+	for (const token of view.tokens) {
+		const usd = Number(token.balance) * (token.price_usd ?? 0);
+		if (!Number.isFinite(usd)) continue;
+		perChain.set(token.chain_id, (perChain.get(token.chain_id) ?? 0) + usd);
+	}
+	const done = [...perChain.entries()]
+		.filter(([id]) => !pending.some((row) => row.id === String(id)))
+		.sort((a, b) => b[1] - a[1])
+		.map(([id, usd]) => ({
+			id: String(id),
+			mark: rescueMark(id),
+			name: chainName(id),
+			amount: view.hidden ? MASK : moneyText(usd, currency)
+		}));
+
+	const total = view.display_total_usd ?? view.cached_total_usd;
+	return {
+		title: m.balanceDetail.title,
+		summary: fill(m.balanceDetail.total, {
+			amount: view.hidden || total === null ? MASK : moneyText(total, currency)
+		}),
+		sectionPending: m.balanceDetail.networksLabel,
+		pendingNote: m.balanceDetail.networksNote,
+		pending,
+		sectionDone: m.balanceDetail.updatedLabel,
+		done
+	};
+}
+
+/**
+ * How much the treasury is short, worded in the asset's own units. The core
+ * carries base units as decimal strings; a value that already has a point is
+ * taken as human decimal (the older `TreasuryStatus` shape).
+ */
+function shortfallText(floor: string, balance: string, decimals: number): string {
+	if (floor.includes('.') || balance.includes('.')) {
+		const diff = Number(floor) - Number(balance);
+		return trimBalance((Number.isFinite(diff) && diff > 0 ? diff : 0).toString());
+	}
+	let units: bigint;
+	try {
+		const f = BigInt(floor);
+		const b = BigInt(balance);
+		units = f > b ? f - b : 0n;
+	} catch {
+		units = 0n;
+	}
+	const digits = units.toString().padStart(decimals + 1, '0');
+	const whole = digits.slice(0, digits.length - decimals);
+	const frac = digits.slice(digits.length - decimals);
+	return trimBalance(decimals === 0 ? whole : `${whole}.${frac}`);
+}
+
+/**
+ * SR4: fund this chain's relay treasury. Every figure is the send core's
+ * probe (`treasury_bootstrap`); the code encodes the treasury's real address.
+ */
+export function liveRelayer(status: SendTreasuryStatus, m: RescueMessages): RelayerModel {
+	const pathUsd = status.asset === 'path_usd';
+	const decimals = pathUsd ? TEMPO_FEE_TOKEN_DECIMALS : 18;
+	const symbol = pathUsd ? 'pathUSD' : (chainInfo(status.chain_id)?.nativeSymbol ?? '');
+	return {
+		title: m.relayer.title,
+		lead: m.relayer.lead,
+		mark: rescueMark(status.chain_id),
+		name: chainName(status.chain_id),
+		amountHint: fill(m.relayer.amountHint, {
+			amount: shortfallText(status.floor, status.balance, decimals),
+			symbol
+		}),
+		qrCaption: m.relayer.addressLabel,
+		addressDisplay: shortenAddress(status.address),
+		address: status.address,
+		code: encodeQr(status.address),
+		copyLabel: m.relayer.copyBtn,
+		callout: { tone: 'warning', text: m.relayer.disclaimer },
+		primary: m.relayer.retryBtn
 	};
 }

@@ -50,14 +50,47 @@
 		onprefevent?: (event: SettingsPrefEvent) => void;
 		/** The sidebar's network filter was used. Absent in the gallery. */
 		onchainselect?: (row: SidebarModel['networks'][number]) => void;
+		/**
+		 * The account page (spec 028 Phase 8): a row picked by its POSITION in
+		 * the session's order, and the two journeys the buttons leave for.
+		 * Absent in the gallery.
+		 */
+		onaccountselect?: (position: number) => void;
+		onaccountcreate?: () => void;
+		onaccountsignin?: () => void;
+		/** The account page is showing: the balance core refreshes its rows while it is. */
+		onaccountsopen?: (open: boolean) => void;
+		/** A storage row's action, by its own id (the phone's `onstorageclear`). */
+		onstorageclear?: (id: string) => void;
+		/** "Clear all caches" was confirmed. Absent in the gallery. */
+		onclearcaches?: () => void;
 	}
 
-	let { model, sidebar, onnav, onsignout, onnetevent, onprefevent, onchainselect }: Props =
-		$props();
+	let {
+		model,
+		sidebar,
+		onnav,
+		onsignout,
+		onnetevent,
+		onprefevent,
+		onchainselect,
+		onaccountselect,
+		onaccountcreate,
+		onaccountsignin,
+		onaccountsopen,
+		onstorageclear,
+		onclearcaches
+	}: Props = $props();
 
 	let page = $state<SettingsPageId>(untrack(() => model.page));
 	let overlay = $state<SettingsOverlayId>(untrack(() => model.overlay));
 	let openDropdown = $state<string | undefined>(untrack(() => model.dropdown?.rowId));
+
+	// The account page has no open/close of its own: showing it IS opening the
+	// switcher, so the balance core hears both edges from the page choice.
+	$effect(() => {
+		onaccountsopen?.(page === 'account');
+	});
 
 	/** The panel's own heading, by page. */
 	const heading = $derived.by(() => {
@@ -138,6 +171,9 @@
 						secondary: model.account.secondary
 					}}
 					layout="inline"
+					onselect={onaccountselect}
+					oncreate={onaccountcreate}
+					onsignin={onaccountsignin}
 				/>
 
 				<hr />
@@ -206,7 +242,7 @@
 				<NetworksPanel
 					rows={model.networks.rows}
 					addLabel={model.networks.addLabel}
-					deleteLabel={model.networks.addLabel}
+					deleteLabel={model.networks.removeLabel}
 					expandable
 					onselect={(id) => onnetevent?.({ kind: 'select-network', id })}
 					ondelete={(id) => onnetevent?.({ kind: 'delete-network', id })}
@@ -239,7 +275,11 @@
 					onreset={() => onnetevent?.({ kind: 'endpoints-reset' })}
 				/>
 			{:else if page === 'storage'}
-				<StoragePanel panel={model.storage} />
+				<StoragePanel
+					panel={model.storage}
+					onclear={onstorageclear}
+					onclearcaches={() => (overlay = 'clear-caches')}
+				/>
 			{:else if page === 'about'}
 				<AboutPanel panel={model.about} layout="inline" />
 			{/if}
@@ -280,6 +320,27 @@
 			<div class="dialog-actions">
 				<Button variant="danger" shape="rounded" onclick={onsignout}>
 					{model.account.signOutLabel}
+				</Button>
+			</div>
+		</Dialog>
+	{:else if overlay === 'clear-caches'}
+		<!-- The phone's confirm sheet, as a dialog (no bottom sheets on the desktop). -->
+		<Dialog
+			title={model.clearCachesSheet.title}
+			closeLabel={model.closeLabel}
+			onclose={() => (overlay = 'none')}
+		>
+			<p class="dialog-body">{model.clearCachesSheet.body}</p>
+			<div class="dialog-actions">
+				<Button
+					variant="primary"
+					shape="rounded"
+					onclick={() => {
+						onclearcaches?.();
+						overlay = 'none';
+					}}
+				>
+					{model.clearCachesSheet.confirm}
 				</Button>
 			</div>
 		</Dialog>

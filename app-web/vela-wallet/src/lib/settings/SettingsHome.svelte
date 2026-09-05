@@ -68,6 +68,18 @@
 		 * where these controls are pictures of themselves.
 		 */
 		onprefevent?: (event: SettingsPrefEvent) => void;
+		/**
+		 * The account switcher (spec 028 Phase 8). A row is picked by its
+		 * POSITION in the sheet — the session's own order — and the two buttons
+		 * leave for the create and sign-in journeys. Absent in the gallery.
+		 */
+		onaccountselect?: (position: number) => void;
+		onaccountcreate?: () => void;
+		onaccountsignin?: () => void;
+		/** The switcher opened or closed: the balance core refreshes its rows while it is up. */
+		onaccountsopen?: (open: boolean) => void;
+		/** The storage page's "clear all caches" was confirmed. Absent in the gallery. */
+		onclearcaches?: () => void;
 	}
 
 	let {
@@ -79,7 +91,12 @@
 		onnetevent,
 		oncurrencyselect,
 		onstorageclear,
-		onprefevent
+		onprefevent,
+		onaccountselect,
+		onaccountcreate,
+		onaccountsignin,
+		onaccountsopen,
+		onclearcaches
 	}: Props = $props();
 
 	// Seeds, not bindings: a gallery state pins where this opens, and a person
@@ -134,7 +151,13 @@
 	}
 
 	function close() {
+		if (overlay === 'accounts') onaccountsopen?.(false);
 		overlay = 'none';
+	}
+
+	function openAccounts() {
+		overlay = 'accounts';
+		onaccountsopen?.(true);
 	}
 
 	/** The sub-page's own header copy. `home` has no back affordance. */
@@ -242,7 +265,7 @@
 
 			{#if !rescue}
 				{#if page === 'home'}
-					<AccountRow account={model.account} onselect={() => (overlay = 'accounts')} />
+					<AccountRow account={model.account} onselect={openAccounts} />
 
 					{#each sections as section, index (index)}
 						{#if section.label !== undefined}
@@ -301,7 +324,7 @@
 					<NetworksPanel
 						rows={model.networks.rows}
 						addLabel={model.networks.addLabel}
-						deleteLabel={model.networks.addLabel}
+						deleteLabel={model.networks.removeLabel}
 						onselect={(id) => {
 							onnetevent?.({ kind: 'select-network', id });
 							page = 'network-detail';
@@ -367,7 +390,15 @@
 				{/if}
 
 				{#if overlay === 'accounts'}
-					<AccountsSheetBody sheet={model.accountsSheet} />
+					<AccountsSheetBody
+						sheet={model.accountsSheet}
+						onselect={(position) => {
+							onaccountselect?.(position);
+							close();
+						}}
+						oncreate={onaccountcreate}
+						onsignin={onaccountsignin}
+					/>
 				{:else if overlay === 'sign-out'}
 					<ConfirmSheet sheet={model.signOutSheet} onconfirm={onsignout} oncancel={close} />
 				{:else if overlay === 'language'}
@@ -411,7 +442,14 @@
 						}}
 					/>
 				{:else if overlay === 'clear-caches'}
-					<ConfirmSheet sheet={model.clearCachesSheet} onconfirm={close} oncancel={close} />
+					<ConfirmSheet
+						sheet={model.clearCachesSheet}
+						onconfirm={() => {
+							onclearcaches?.();
+							close();
+						}}
+						oncancel={close}
+					/>
 				{:else if overlay === 'erase-device'}
 					<!-- The sheet does NOT close on confirm: an erase that fails must
 					     say so where the person is looking, and the route reports it

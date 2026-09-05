@@ -369,6 +369,7 @@ export function resolveSettingsMessages(locale: Locale): SettingsMessages {
 			httpsRequired: k('settingsModals.health.httpsRequired'),
 			invalid: k('settingsModals.health.invalid'),
 			chainId: k('settingsModals.network.chainId'),
+			remove: k('settingsModals.network.removeTitle'),
 			rpcUrl: k('settingsModals.network.fieldRpcUrl'),
 			explorer: k('settingsModals.network.fieldExplorer'),
 			mismatch: k('settingsModals.network.rpcChainMismatch')

@@ -136,7 +136,8 @@ export function liveTxDetail(item: FeedItem, ctx: TxDetailContext): TxDetailMode
 		fiat: hidden ? MASK : `≈ ${moneyText(item.usd_value, currency)}`,
 		positive: received,
 		facts,
-		viewOnExplorer: m['history.viewOnExplorer']
+		viewOnExplorer: m['history.viewOnExplorer'],
+		deleteLabel: m['history.deleteRecord']
 	};
 }
 

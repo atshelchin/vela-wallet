@@ -171,7 +171,10 @@ describe('generated i18n resources', () => {
     // with no valid address, and `importDoneBody` had words for only two of
     // the three numbers).
     // 22,848 = 22,833 plus 028 6c's `contacts.batchSendNeedsMembers` × 15.
-    expect(total).toBe(22_848);
+    // 22,863 = 22,848 plus 028 Phase 8's `history.deleteRecord` × 15: the
+    // activity detail's delete, a record the feed tombstones (Expo's
+    // swipe-to-delete had no word of its own — the row simply went).
+    expect(total).toBe(22_863);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

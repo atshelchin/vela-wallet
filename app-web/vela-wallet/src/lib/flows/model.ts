@@ -226,6 +226,11 @@ export interface TxDetailModel {
 	positive: boolean;
 	facts: FactRowModel[];
 	viewOnExplorer: string;
+	/**
+	 * "Delete record" — the feed's tombstone (spec 028 Phase 8). Absent in the
+	 * drawn fixtures, where the detail is a picture; present on a live row.
+	 */
+	deleteLabel?: string;
 }
 
 /* ------------------------------------------------------------------ assets */

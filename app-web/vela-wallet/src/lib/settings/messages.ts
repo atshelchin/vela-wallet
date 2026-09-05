@@ -80,6 +80,8 @@ export interface SettingsMessages {
 		invalid: string;
 		/** Template with `{{chainId}}`. */
 		chainId: string;
+		/** The delete control on a custom row — "Remove Network" (spec 028 Phase 8). */
+		remove: string;
 		rpcUrl: string;
 		explorer: string;
 		mismatch: string;
@@ -361,6 +363,7 @@ export const SETTINGS_KEYS = [
 	'settings.networks.slow',
 	'settingsModals.health.offline',
 	'settingsModals.network.chainId',
+	'settingsModals.network.removeTitle',
 	'settingsModals.network.fieldRpcUrl',
 	'settingsModals.network.fieldExplorer',
 	'settingsModals.network.rpcChainMismatch',

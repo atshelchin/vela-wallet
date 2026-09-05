@@ -15,9 +15,11 @@
 	interface Props {
 		model: TxDetailModel;
 		onexplorer?: () => void;
+		/** The record's delete (spec 028 Phase 8). Absent in the gallery. */
+		ondelete?: () => void;
 	}
 
-	let { model, onexplorer }: Props = $props();
+	let { model, onexplorer, ondelete }: Props = $props();
 
 	let copiedIndex = $state(-1);
 	let timer: ReturnType<typeof setTimeout> | undefined;
@@ -45,6 +47,10 @@
 
 	<div class="cta">
 		<Button variant="secondary" onclick={onexplorer}>{model.viewOnExplorer}</Button>
+		{#if model.deleteLabel !== undefined}
+			<!-- Removes the local record only; the chain keeps the transaction. -->
+			<Button variant="danger" onclick={ondelete}>{model.deleteLabel}</Button>
+		{/if}
 	</div>
 </div>
 
@@ -79,6 +85,9 @@
 	}
 
 	.cta {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-md);
 		padding-top: var(--space-xl);
 	}
 </style>

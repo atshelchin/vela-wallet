@@ -32,6 +32,8 @@
 		) => void;
 		/** Spec 025: tap-to-hide. The core owns `hidden`; this only reports the tap. */
 		onbalancetoggle?: () => void;
+		/** The balance status line was tapped (spec 028 Phase 8): the rescue for what it says. */
+		onstatus?: () => void;
 		/** An activity row was tapped (live): which one, before the flow opens. */
 		onactivity?: (row: ActivityRowModel) => void;
 	}
@@ -44,7 +46,8 @@
 		identiconViewerLabel,
 		onflow,
 		onbalancetoggle,
-		onactivity
+		onactivity,
+		onstatus
 	}: Props = $props();
 
 	// Pure UI state: the fixture-provided sheet, once dismissed, stays dismissed.
@@ -64,7 +67,7 @@
 		</header>
 
 		<div class="balance">
-			<BalanceDisplay balance={model.balance} ontoggle={onbalancetoggle} />
+			<BalanceDisplay balance={model.balance} ontoggle={onbalancetoggle} {onstatus} />
 		</div>
 
 		<ActionButtonRow

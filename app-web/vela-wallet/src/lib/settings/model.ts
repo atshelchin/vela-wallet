@@ -12,6 +12,7 @@
  * and a confirm sheet cover almost all of them. The types below name that
  * vocabulary once; the screens are compositions.
  */
+import type { QrCode } from '$lib/wallet/qr';
 import type { UtilityIconId } from '$lib/wallet/icons';
 
 /** Mobile mocks ST1–ST16 plus the SR1–SR5 rescue set. */
@@ -499,6 +500,10 @@ export interface RelayerModel {
 	copyLabel: string;
 	callout: CalloutModel;
 	primary: string;
+	/** The full address behind the display, for the copy (spec 028 Phase 8). Live only. */
+	address?: string;
+	/** The code of that address. Absent in the gallery, where the drawn placeholder stands. */
+	code?: QrCode;
 }
 
 /** SR5: the passkey index is unreachable, and onboarding needs it. */
@@ -527,7 +532,14 @@ export interface SettingsHomeModel {
 	signOut: { label: string };
 	erase: { title: string; subtitle: string };
 	/** Pages, all pre-built so the state switcher is a pure choice. */
-	networks: { title: string; subtitle: string; rows: NetworkRowModel[]; addLabel: string };
+	networks: {
+		title: string;
+		subtitle: string;
+		rows: NetworkRowModel[];
+		addLabel: string;
+		/** The custom row's delete control (spec 028 Phase 8) — it used to borrow `addLabel`. */
+		removeLabel: string;
+	};
 	networkDetail: NetworkDetailModel;
 	addNetwork: AddNetworkModel;
 	rpcProviders: RpcProvidersModel;
@@ -619,12 +631,15 @@ export interface SettingsDesktopModel {
 		title: string;
 		subtitle: string;
 		addLabel: string;
+		removeLabel: string;
 		rows: NetworkRowModel[];
 		detail: NetworkDetailModel;
 	};
 	rpcProviders: RpcProvidersModel;
 	endpoints: EndpointsModel;
 	storage: StorageModel;
+	/** The desktop's clear-all-caches confirm, as a dialog (spec 028 Phase 8). */
+	clearCachesSheet: ConfirmSheetModel;
 	about: AboutModel;
 	addNetwork: AddNetworkModel;
 	rpcFix: RpcFixModel;

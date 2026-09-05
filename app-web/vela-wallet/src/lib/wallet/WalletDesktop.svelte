@@ -19,6 +19,8 @@
 		identiconViewerLabel?: string;
 		/** Spec 025: tap-to-hide. The core owns `hidden`; this only reports the tap. */
 		onbalancetoggle?: () => void;
+		/** The balance status line was tapped (spec 028 Phase 8): the rescue for what it says. */
+		onstatus?: () => void;
 		/**
 		 * Spec 021: the dock and the two section actions open a flow in the
 		 * third column. When it is wired the flow host owns that column, so
@@ -51,7 +53,8 @@
 		onchainselect,
 		onasset,
 		onassetclose,
-		onactivity
+		onactivity,
+		onstatus
 	}: Props = $props();
 
 	// The third column replaces the mobile bottom sheet (research.md D5).
@@ -76,7 +79,7 @@
 
 	<main>
 		<div class="content">
-			<BalanceDisplay balance={model.balance} ontoggle={onbalancetoggle} />
+			<BalanceDisplay balance={model.balance} ontoggle={onbalancetoggle} {onstatus} />
 
 			<div class="actions">
 				<ActionButtonRow

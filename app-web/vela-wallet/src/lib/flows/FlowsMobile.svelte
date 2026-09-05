@@ -109,9 +109,12 @@
 		 * no-op and nothing opens. Absent in the gallery.
 		 */
 		onsheetclose?: () => void;
+		/** The open transaction's delete (spec 028 Phase 8). Absent in the gallery. */
+		ondeletetx?: () => void;
 	}
 
-	let { model, onback, onnavigate, send, batch, scan, addToken, onsheetclose }: Props = $props();
+	let { model, onback, onnavigate, send, batch, scan, addToken, onsheetclose, ondeletetx }: Props =
+		$props();
 
 	const base = $derived(model.base);
 	const sheet = $derived(model.sheet);
@@ -224,7 +227,7 @@
 				hideTitle
 				onclose={() => (sheetClosed = true)}
 			>
-				<TxDetail model={sheet.model} />
+				<TxDetail model={sheet.model} ondelete={ondeletetx} />
 			</BottomSheet>
 		{:else if sheet.kind === 'token-detail'}
 			<BottomSheet

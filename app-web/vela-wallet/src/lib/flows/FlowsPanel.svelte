@@ -82,9 +82,11 @@
 		addToken?: { input(value: string): void; submit(): void };
 		send?: SendActions;
 		batch?: BatchActions;
+		/** The open transaction's delete (spec 028 Phase 8). Absent in the gallery. */
+		ondeletetx?: () => void;
 	}
 
-	let { model, onback, onclose, onnavigate, addToken, send, batch }: Props = $props();
+	let { model, onback, onclose, onnavigate, addToken, send, batch, ondeletetx }: Props = $props();
 
 	const body = $derived(model.body);
 	const go = (to: string, index?: number) => onnavigate?.(to, index);
@@ -104,7 +106,7 @@
 	{:else if body.kind === 'history'}
 		<History model={body.model} onselect={(g, r) => go('tx-detail', g * 100 + r)} />
 	{:else if body.kind === 'tx-detail'}
-		<TxDetail model={body.model} />
+		<TxDetail model={body.model} ondelete={ondeletetx} />
 	{:else if body.kind === 'assets'}
 		<Assets
 			model={body.model}

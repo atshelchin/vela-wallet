@@ -1,9 +1,11 @@
 import { error } from '@sveltejs/kit';
 import {
+	resolveSettingsMessages,
 	resolveSigningMessages,
 	resolveWalletFlowMessages,
 	resolveWalletMessages
 } from '$lib/i18n/engine.server';
+import { pickRescueMessages } from '$lib/settings/live';
 import { SUPPORTED_LOCALES, toLocale } from '$lib/i18n/locales';
 import { buildDesktopState, buildMobileState } from '$lib/wallet/fixtures';
 import { buildDesktopFlowState, buildDesktopScan, buildFlowState } from '$lib/flows/fixtures';
@@ -69,6 +71,10 @@ export const load: PageServerLoad = ({ params }) => {
 		// boards are built from, so a live sheet and its drawn twin cannot
 		// disagree about a word.
 		signingMessages: resolveSigningMessages(locale),
-		desktopScan: buildDesktopScan(flowMessages)
+		desktopScan: buildDesktopScan(flowMessages),
+		// The rescue sheets (spec 028 Phase 8) are settings components opened
+		// over the wallet and the send; they speak the settings corpus, and only
+		// the slice they need ships with this page.
+		rescueMessages: pickRescueMessages(resolveSettingsMessages(locale))
 	};
 };

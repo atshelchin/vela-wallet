@@ -15,6 +15,9 @@ import {
 	liveSendForm,
 	liveSendPick,
 	liveSendReceipt,
+	sendTokenClass,
+	sendTokenId,
+	visibleSendTokens,
 	type SendLiveInputs
 } from './live-send';
 
@@ -364,5 +367,71 @@ describe('the fee-coin sheet', () => {
 		expect(model.rows[0]).toMatchObject({ selected: true, fee: '~0.0021 ETH' });
 		// No quote for a coin that cannot pay — said, not guessed.
 		expect(model.rows[1].fee).toBe('—');
+	});
+});
+
+// ---------------------------------------------------------------------------
+// SD1's two narrowings (spec 028 Phase 10)
+// ---------------------------------------------------------------------------
+
+describe('the picker narrows to the sidebar chain and the class chips', () => {
+	const XDAI: SendToken = {
+		...ETH,
+		network: 'gnosis-mainnet',
+		chain_id: 100,
+		symbol: 'XDAI',
+		balance: '71.39',
+		price_usd: 1
+	};
+	const send = { tokens: [USDT, ETH, XDAI], stage: 'select_token' as const };
+
+	it('classes a chain coin as gas, a stable by symbol, the rest as other', () => {
+		expect(sendTokenClass(ETH)).toBe('gas');
+		expect(sendTokenClass(XDAI)).toBe('gas');
+		expect(sendTokenClass(USDT)).toBe('stable');
+		expect(sendTokenClass({ ...USDT, symbol: 'LINK' })).toBe('other');
+	});
+
+	it('shows every token with no filter, and the chips read "all" selected', () => {
+		const model = liveSendPick(pickModel(), inputs(send));
+		expect(model.rows.map((r) => r.ticker)).toEqual(['USDT', 'ETH', 'XDAI']);
+		expect(model.filters.find((f) => f.selected)?.id).toBe('all');
+		expect(model.header.pill?.label).toBe(m['componentsUi.networkFilter.pillAll']);
+	});
+
+	it('narrows to the chosen chain and names it on the pill', () => {
+		const model = liveSendPick(pickModel(), { ...inputs(send), chainFilter: 100 });
+		expect(model.rows.map((r) => r.ticker)).toEqual(['XDAI']);
+		expect(model.header.pill?.label).toBe('Gnosis');
+		expect(model.header.pill?.dots).toHaveLength(1);
+	});
+
+	it('narrows to a class, and the index a tap emits is into the same list', () => {
+		const filters = { classFilter: 'gas' as const };
+		const model = liveSendPick(pickModel(), { ...inputs(send), ...filters });
+		expect(model.rows.map((r) => r.ticker)).toEqual(['ETH', 'XDAI']);
+		expect(model.filters.find((f) => f.selected)?.id).toBe('gas');
+		// The page resolves the row the same way, so row 1 IS XDAI.
+		expect(visibleSendTokens({ ...EMPTY_SEND, ...send }, filters)[1]).toBe(XDAI);
+	});
+
+	it('keeps the sweep ticks aligned to the narrowed rows', () => {
+		const model = liveSendPick(pickModel(), {
+			...inputs({ ...send, multi_selected_ids: [sendTokenId(XDAI)], multi_chain_id: 100 }),
+			sweepPicking: true,
+			classFilter: 'gas'
+		});
+		expect(model.rows.map((r) => r.ticker)).toEqual(['ETH', 'XDAI']);
+		expect(model.selection?.selected).toEqual([false, true]);
+		expect(model.selection?.dimmed).toEqual([true, false]);
+	});
+
+	it('keeps a fee figure on screen while a re-quote is out', () => {
+		const model = liveSendForm(
+			formModel(),
+			inputs({ ...send, selected_token: ETH, fee: QUOTE, fee_busy: true })
+		);
+		expect(model.fee.value).not.toBe('…');
+		expect(model.fee.value).toMatch(/ETH/);
 	});
 });

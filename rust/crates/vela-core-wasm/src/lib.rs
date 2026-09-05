@@ -1234,3 +1234,152 @@ pub fn i18n_plural_suffixes_legacy() -> Vec<String> {
 pub fn i18n_text_direction(lng: &str) -> String {
     vela_core::l10n::text_direction(lng).as_str().to_owned()
 }
+
+// ---------------------------------------------------------------------------
+// user_op — the second implementation the shell's assembly is checked against
+// (spec 028 Phase 8). The shell hands over the operation it built and the
+// calls it SHOWED; the core rebuilds the calldata from those calls, refuses if
+// the bytes differ, and answers the SafeOp hash the passkey may sign.
+// ---------------------------------------------------------------------------
+
+/// One sub-call as the shell built it. `value_hex` and `data_hex` may carry a
+/// `0x` or not; empty means zero / no data.
+#[derive(Deserialize)]
+struct AttestCall {
+    to: String,
+    value_hex: String,
+    data_hex: String,
+}
+
+/// The in-band fee leg by its INPUTS. The core builds the leg itself, so a
+/// shell that changed the recipient or the amount after the confirm is caught
+/// here — not only a shell that changed the bytes.
+#[derive(Deserialize)]
+struct AttestFeeLeg {
+    gas_fee_token: Option<String>,
+    recipient: String,
+    amount_hex: String,
+}
+
+#[derive(Deserialize)]
+struct AttestCalls {
+    inner: Vec<AttestCall>,
+    fee: Option<AttestFeeLeg>,
+    always_multi_send: bool,
+}
+
+/// The shell's operation, every field as it will be hashed. Gas fields are
+/// decimal strings (JavaScript bigints); byte fields are hex.
+#[derive(Deserialize)]
+struct AttestOp {
+    sender: String,
+    nonce: String,
+    init_code_hex: String,
+    call_data_hex: String,
+    verification_gas_limit: String,
+    call_gas_limit: String,
+    pre_verification_gas: String,
+    max_fee_per_gas: String,
+    max_priority_fee_per_gas: String,
+    paymaster_and_data_hex: String,
+}
+
+fn attest_bytes(hex: &str) -> Result<Vec<u8>, vela_core::CoreError> {
+    let bare = hex.strip_prefix("0x").unwrap_or(hex);
+    if bare.is_empty() {
+        return Ok(Vec::new());
+    }
+    vela_core::primitives::from_hex(bare)
+}
+
+fn attest_decimal(value: &str, field: &str) -> Result<u128, vela_core::CoreError> {
+    value
+        .parse::<u128>()
+        .map_err(|_| vela_core::CoreError::InvalidQuantity(format!("{field}: {value}")))
+}
+
+fn attest_hex_amount(value: &str) -> Result<u128, vela_core::CoreError> {
+    let bare = value.strip_prefix("0x").unwrap_or(value);
+    if bare.is_empty() {
+        return Ok(0);
+    }
+    u128::from_str_radix(bare, 16)
+        .map_err(|_| vela_core::CoreError::InvalidQuantity(format!("fee amount: {value}")))
+}
+
+fn attest_safe_op_hash_inner(
+    op_json: &str,
+    calls_json: &str,
+    chain_id: u64,
+) -> Result<Vec<u8>, vela_core::CoreError> {
+    use vela_core::user_op;
+    let op: AttestOp = serde_json::from_str(op_json)
+        .map_err(|e| vela_core::CoreError::Internal(format!("attest: operation: {e}")))?;
+    let call_data = attest_bytes(&op.call_data_hex)?;
+
+    // An empty description means "hash only": the legacy path hands the core
+    // finished calldata and nothing it was built from.
+    if !calls_json.is_empty() {
+        let calls: AttestCalls = serde_json::from_str(calls_json)
+            .map_err(|e| vela_core::CoreError::Internal(format!("attest: calls: {e}")))?;
+        let mut legs: Vec<user_op::MultiSendCall> = Vec::with_capacity(calls.inner.len() + 1);
+        for call in calls.inner {
+            legs.push(user_op::MultiSendCall {
+                to: call.to,
+                value_hex: call.value_hex,
+                data: attest_bytes(&call.data_hex)?,
+            });
+        }
+        if let Some(fee) = calls.fee {
+            legs.push(user_op::build_in_band_fee_leg(
+                fee.gas_fee_token.as_deref(),
+                &fee.recipient,
+                attest_hex_amount(&fee.amount_hex)?,
+            )?);
+        }
+        let expected = user_op::build_native_call_data(&legs, calls.always_multi_send)?;
+        if expected != call_data {
+            return Err(vela_core::CoreError::Internal(
+                "attest: the operation's calldata is not the calls that were shown".to_owned(),
+            ));
+        }
+    }
+
+    let user_op = user_op::UserOperation {
+        sender: op.sender,
+        nonce: op.nonce,
+        init_code: attest_bytes(&op.init_code_hex)?,
+        call_data,
+        verification_gas_limit: attest_decimal(&op.verification_gas_limit, "verificationGasLimit")?,
+        call_gas_limit: attest_decimal(&op.call_gas_limit, "callGasLimit")?,
+        pre_verification_gas: attest_decimal(&op.pre_verification_gas, "preVerificationGas")?,
+        max_fee_per_gas: attest_decimal(&op.max_fee_per_gas, "maxFeePerGas")?,
+        max_priority_fee_per_gas: attest_decimal(
+            &op.max_priority_fee_per_gas,
+            "maxPriorityFeePerGas",
+        )?,
+        paymaster_and_data: attest_bytes(&op.paymaster_and_data_hex)?,
+        signature: Vec::new(),
+    };
+    user_op::calculate_safe_op_hash(&user_op, chain_id)
+}
+
+/// The SafeOp hash of `op_json`, on `chain_id` — after checking that its
+/// calldata is exactly what `calls_json` describes (pass `""` to skip the
+/// calldata check and attest the hash alone).
+#[wasm_bindgen(js_name = attestSafeOpHash)]
+pub fn attest_safe_op_hash(op_json: &str, calls_json: &str, chain_id: u64) -> JsResult<Vec<u8>> {
+    attest_safe_op_hash_inner(op_json, calls_json, chain_id).map_err(err)
+}
+
+/// The Safe message hash a passkey signs for EIP-1271 (`SafeMessage(bytes)`
+/// under the Safe's own domain) — the core's reading, for comparison.
+#[wasm_bindgen(js_name = attestSafeMessageHash)]
+pub fn attest_safe_message_hash(
+    original_hash: &[u8],
+    chain_id: u64,
+    safe_address: &str,
+) -> JsResult<Vec<u8>> {
+    vela_core::user_op::compute_safe_message_hash(original_hash, chain_id, safe_address)
+        .map_err(err)
+}

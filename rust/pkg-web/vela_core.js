@@ -2494,6 +2494,51 @@ export function abiEncodeUint256(value_hex) {
 }
 
 /**
+ * The Safe message hash a passkey signs for EIP-1271 (`SafeMessage(bytes)`
+ * under the Safe's own domain) — the core's reading, for comparison.
+ * @param {Uint8Array} original_hash
+ * @param {bigint} chain_id
+ * @param {string} safe_address
+ * @returns {Uint8Array}
+ */
+export function attestSafeMessageHash(original_hash, chain_id, safe_address) {
+    const ptr0 = passArray8ToWasm0(original_hash, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(safe_address, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.attestSafeMessageHash(ptr0, len0, chain_id, ptr1, len1);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v3;
+}
+
+/**
+ * The SafeOp hash of `op_json`, on `chain_id` — after checking that its
+ * calldata is exactly what `calls_json` describes (pass `""` to skip the
+ * calldata check and attest the hash alone).
+ * @param {string} op_json
+ * @param {string} calls_json
+ * @param {bigint} chain_id
+ * @returns {Uint8Array}
+ */
+export function attestSafeOpHash(op_json, calls_json, chain_id) {
+    const ptr0 = passStringToWasm0(op_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(calls_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.attestSafeOpHash(ptr0, len0, ptr1, len1, chain_id);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v3;
+}
+
+/**
  * The deepest pool across ALL stable quotes — `best_native_dex_price`, which
  * folds `best_group_price` over each group.
  * @param {NativeQuoteGroups} groups

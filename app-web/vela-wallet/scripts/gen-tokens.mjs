@@ -138,6 +138,11 @@ const WEB_ADDITIONS = [
 		'spec 023: the centred desktop dialog (DST4b / DSR1), measured 520 — wide enough for a URL in the mono face without becoming a second page'
 	],
 	[
+		'layout-promptCard',
+		'440px',
+		'spec 019: the centred prompt card past the desktop breakpoint (PromptSheet, SignOutSheet, IdenticonViewer). Spec 019 recorded declaring it and never did, so every prompt card read `max-width: var(--layout-promptCard)` as invalid and spanned the whole window (founder-found 2026-09-05). 440 holds a 42-character address in the mono face on one line with the card padding, and stays a card rather than a page'
+	],
+	[
 		'layout-flowColumn',
 		'440px',
 		'spec 019: the v2 onboarding flow column. The design centres every step in one column of this width at every viewport; the Welcome hero is the only wider one'

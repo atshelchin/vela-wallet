@@ -38,8 +38,11 @@ import type { ContactsBook, RecipientTrustSignal } from './contacts-controller-t
 const EMPTY_VIEW: ContactsView = {
   loaded: false,
   contacts: [],
+  sections: [],
   groups: [],
   last_import: null,
+  import_failure: null,
+  export: null,
   recipient: null,
 };
 

@@ -153,8 +153,7 @@ export function resolveWalletMessages(locale: Locale): WalletMessages {
 			allNetworks: k('componentsUi.networkFilter.allNetworks')
 		},
 		sidebar: {
-			networks: k('settingsModals.network.modalTitle'),
-			searchPlaceholder: k('componentsUi.commandBar.placeholder')
+			networks: k('settingsModals.network.modalTitle')
 		},
 		receive: {
 			title: k('receive.title'),
@@ -235,6 +234,7 @@ export function resolveContactsMessages(locale: Locale): ContactsMessages {
 		batchSend: k('contacts.batchSend'),
 		batchSendHint: k('contacts.batchSendHint'),
 		batchSendHintTitled: k('contacts.batchSendHintTitled'),
+		batchSendNeedsMembers: k('contacts.batchSendNeedsMembers'),
 		importFile: k('contacts.importFile'),
 		importAll: k('contacts.importAll'),
 		importGroup: k('contacts.importGroup'),
@@ -253,9 +253,22 @@ export function resolveContactsMessages(locale: Locale): ContactsMessages {
 		deleteTitle: k('contacts.deleteTitle'),
 		deleteBody: k('contacts.deleteBody'),
 		cancel: k('contacts.cancel'),
+		importDoneTitle: k('contacts.importDoneTitle'),
+		importDoneBody: k('contacts.importDoneBody'),
+		importDoneInvalid: k('contacts.importDoneInvalid'),
+		importFailTitle: k('contacts.importFailTitle'),
+		importFailBody: k('contacts.importFailBody'),
+		exportBody: k('contacts.exportBody'),
+		groupDeleteBody: k('contacts.groupDeleteBody'),
+		groupMembersLabel: k('contacts.groupMembersLabel'),
+		groupNoContacts: k('contacts.groupNoContacts'),
+		copied: k('componentsUi.identiconViewer.copied'),
+		noActivity: k('history.emptyTitle'),
+		done: k('common.done'),
 		activity: {
 			sent: k('history.labelSent'),
 			received: k('history.labelReceived'),
+			today: k('componentsUi.dayGroup.today'),
 			yesterday: k('componentsUi.dayGroup.yesterday'),
 			all: k('history.filterAll')
 		},
@@ -265,7 +278,6 @@ export function resolveContactsMessages(locale: Locale): ContactsMessages {
 			navExplore: k('componentsUi.mainNav.explore'),
 			navSettings: k('componentsUi.mainNav.settings'),
 			networksTitle: k('settingsModals.network.modalTitle'),
-			commandBarPlaceholder: k('componentsUi.commandBar.placeholder'),
 			allNetworks: k('componentsUi.networkFilter.allNetworks'),
 			close: k('componentsUi.identiconViewer.close')
 		}
@@ -355,6 +367,7 @@ export function resolveSettingsMessages(locale: Locale): SettingsMessages {
 			httpsRequired: k('settingsModals.health.httpsRequired'),
 			invalid: k('settingsModals.health.invalid'),
 			chainId: k('settingsModals.network.chainId'),
+			remove: k('settingsModals.network.removeTitle'),
 			rpcUrl: k('settingsModals.network.fieldRpcUrl'),
 			explorer: k('settingsModals.network.fieldExplorer'),
 			mismatch: k('settingsModals.network.rpcChainMismatch')
@@ -481,7 +494,8 @@ export function resolveSettingsMessages(locale: Locale): SettingsMessages {
 			loses: k('settings.eraseDevice.loses'),
 			keeps: k('settings.eraseDevice.keeps'),
 			confirm: k('settings.eraseDevice.confirm'),
-			cancel: k('settings.eraseDevice.cancel')
+			cancel: k('settings.eraseDevice.cancel'),
+			failed: k('settings.eraseDevice.failed')
 		},
 		bugReport: {
 			title: k('componentsUi.bugReport.title'),
@@ -549,7 +563,6 @@ export function resolveSettingsMessages(locale: Locale): SettingsMessages {
 		},
 		shell: {
 			networksTitle: k('settingsModals.network.modalTitle'),
-			commandBarPlaceholder: k('componentsUi.commandBar.placeholder'),
 			allNetworks: k('componentsUi.networkFilter.allNetworks')
 		},
 		walletTitle: k('componentsUi.mainNav.wallet'),

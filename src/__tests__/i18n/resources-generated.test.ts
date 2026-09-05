@@ -159,8 +159,22 @@ describe('generated i18n resources', () => {
     // of the ERC-7730 ladder the 33 CS mocks walk down. Roughly 95% of the
     // signing copy was already in the corpus, which is why 33 scenarios cost
     // 43 strings and not 400.
+    // 22,803 = 22,758 plus spec 028's 3 `componentsUi.scanner.*` keys × 15:
+    // noCamera / insecureOrigin / cameraUnavailable. Native never needed them —
+    // a phone has a camera, and an app has no origin to be insecure — but the
+    // web scanner refuses in three ways with three different things to do about
+    // them, and a viewfinder that only stays black says none of it.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(22_758);
+    // 22,833 = 22,803 plus spec 028 US5's 2 `contacts.*` keys × 15:
+    // groupDeleteBody (the confirm says the rule the core enforces — a deleted
+    // group keeps its contacts) and importDoneInvalid (the importer counts rows
+    // with no valid address, and `importDoneBody` had words for only two of
+    // the three numbers).
+    // 22,848 = 22,833 plus 028 6c's `contacts.batchSendNeedsMembers` × 15.
+    // 22,863 = 22,848 plus 028 Phase 8's `history.deleteRecord` × 15: the
+    // activity detail's delete, a record the feed tombstones (Expo's
+    // swipe-to-delete had no word of its own — the row simply went).
+    expect(total).toBe(22_863);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

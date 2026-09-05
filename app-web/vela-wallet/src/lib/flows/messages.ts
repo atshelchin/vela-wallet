@@ -43,6 +43,14 @@ export const WALLET_FLOW_KEYS = [
 	'componentsUi.scanner.fromGallery',
 	'componentsUi.scanner.torch',
 	'componentsUi.scanner.flipCamera',
+	// Why there is nothing to look at. A browser refuses in more ways than a
+	// phone does, and each refusal is a different thing for a person to do.
+	'componentsUi.scanner.permissionText',
+	'componentsUi.scanner.noCamera',
+	'componentsUi.scanner.insecureOrigin',
+	'componentsUi.scanner.cameraUnavailable',
+	'componentsUi.scanner.noQrFoundMsg',
+	'home.invalidQrTitle',
 
 	// -------------------------------------------------------------- activity
 	'history.navTitle',
@@ -52,6 +60,7 @@ export const WALLET_FLOW_KEYS = [
 	'history.labelReceived',
 	'history.txLabelSent',
 	'history.txLabelReceived',
+	'history.deleteRecord',
 	'history.toName',
 	'history.fromName',
 	'history.viewOnExplorer',
@@ -104,6 +113,12 @@ export const WALLET_FLOW_KEYS = [
 	'addToken.addNetworkBtn',
 	'addToken.deployContracts',
 	'addToken.errorNotCompatible',
+	// The live add-token sheet (spec 028 T442): the probe in flight, and a
+	// write that failed — both existed in the corpus, neither was on a mock.
+	'addToken.searchingNetworks',
+	'addToken.errorSaveToken',
+	// T3b live: an inconclusive probe is never worded as incompatible (024 invariant ③).
+	'settingsModals.addNetwork.unableToVerify',
 
 	// ------------------------------------------------------------------ send
 	'send.selectTokenTitle',

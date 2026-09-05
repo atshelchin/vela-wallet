@@ -10,19 +10,24 @@
 	import AmountHero from '../ui/AmountHero.svelte';
 	import FactRow from '../ui/FactRow.svelte';
 	import StatusChip from '../ui/StatusChip.svelte';
+	import { copyText } from '$lib/services/clipboard';
 	import type { TxDetailModel } from '../model';
 
 	interface Props {
 		model: TxDetailModel;
 		onexplorer?: () => void;
+		/** The record's delete (spec 028 Phase 8). Absent in the gallery. */
+		ondelete?: () => void;
 	}
 
-	let { model, onexplorer }: Props = $props();
+	let { model, onexplorer, ondelete }: Props = $props();
 
 	let copiedIndex = $state(-1);
 	let timer: ReturnType<typeof setTimeout> | undefined;
 
 	function copy(index: number) {
+		const fact = model.facts[index];
+		void copyText(fact?.copyValue ?? fact?.value ?? '');
 		copiedIndex = index;
 		clearTimeout(timer);
 		timer = setTimeout(() => (copiedIndex = -1), 150);
@@ -44,7 +49,15 @@
 	</ul>
 
 	<div class="cta">
-		<Button variant="secondary" onclick={onexplorer}>{model.viewOnExplorer}</Button>
+		{#if model.explorerUrl !== undefined}
+			<Button variant="secondary" href={model.explorerUrl} external>{model.viewOnExplorer}</Button>
+		{:else}
+			<Button variant="secondary" onclick={onexplorer}>{model.viewOnExplorer}</Button>
+		{/if}
+		{#if model.deleteLabel !== undefined}
+			<!-- Removes the local record only; the chain keeps the transaction. -->
+			<Button variant="danger" onclick={ondelete}>{model.deleteLabel}</Button>
+		{/if}
 	</div>
 </div>
 
@@ -79,6 +92,9 @@
 	}
 
 	.cta {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-md);
 		padding-top: var(--space-xl);
 	}
 </style>

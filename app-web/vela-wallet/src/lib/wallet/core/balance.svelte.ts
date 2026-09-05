@@ -66,6 +66,28 @@ class Balance {
 		if (!this.#booted) return;
 		dispatchBalance({ type: 'app_backgrounded' });
 	}
+
+	/**
+	 * The account switcher is on screen (spec 028 Phase 8): the core refreshes
+	 * every listed account's total while it is, and `view.switcher.balances`
+	 * carries the answers — Expo's `AccountSwitcherModal` sourcing, in the one
+	 * machine that already owns the policy.
+	 */
+	openSwitcher(addresses: string[]): void {
+		if (!this.#booted) return;
+		dispatchBalance({ type: 'switcher_opened', addresses });
+	}
+
+	closeSwitcher(): void {
+		if (!this.#booted) return;
+		dispatchBalance({ type: 'switcher_closed' });
+	}
+
+	/** An RPC fix landed for one chain (spec 028 Phase 8): the core retries that chain alone. */
+	fixChainResolved(chainId: number): void {
+		if (!this.#booted) return;
+		dispatchBalance({ type: 'fix_chain_resolved', chain_id: chainId });
+	}
 }
 
 /** Browser-only: `boot()` loads wasm — callers guard on mount. */

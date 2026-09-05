@@ -60,6 +60,15 @@ export default defineConfig({
 	server: {
 		fs: { allow: [LAUNCH_ANIMATIONS] }
 	},
+	/**
+	 * The two QR decoders, pre-bundled (spec 028). Without this, vitest's browser
+	 * project discovers them mid-run, re-optimises and RELOADS the test — which
+	 * Vitest itself warns "may cause flaky behaviour or duplicated test runs".
+	 * Naming them here is the fix it asks for.
+	 */
+	optimizeDeps: {
+		include: ['@undecaf/zbar-wasm', 'jsqr']
+	},
 	plugins: [
 		sveltekit({
 			compilerOptions: {

@@ -318,7 +318,8 @@ export function buildSigningModel(inputs: SigningLiveInputs): SigningModel | nul
 		signer: {
 			label: m.signingAccount,
 			name: identity.name,
-			identiconSvg: identicon(identity.address)
+			identiconSvg: identicon(identity.address),
+			address: identity.address
 		},
 		confirm: {
 			hint: m.slideToConfirm,

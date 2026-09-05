@@ -240,8 +240,25 @@ for (let i = 1; i < PATHS.length; i++) {
 //   verified-ABI decode, 4byte best-effort, the un-simulatable case, the drain
 //   reveal, Safe's inner call, deploy, and the slide-to-confirm labels. The
 //   other ~95% of the signing copy was already here, which is why this is 43.
-if (PATHS.length !== 1620) fail(`expected 1620 paths (1536 leaf + 84 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1536) fail(`expected 1536 leaf paths, got ${leafSet.size}`);
+// + 3 more (spec 028, the web scanner's refusals): `componentsUi.scanner.
+//   {noCamera,insecureOrigin,cameraUnavailable}`. Native never needed them —
+//   a phone has a camera and an app has no origin — but a browser refuses in
+//   three ways a person can act on differently, and a viewfinder that just
+//   stays black tells them their camera is broken. The corpus was searched
+//   first: `permissionText` covers the refusal that can be undone in site
+//   settings, and nothing here said "there is no camera", "this page is not on
+//   HTTPS" or "something else has the camera". No new branch — all three hang
+//   off the existing `componentsUi.scanner`.
+// + 2 more (spec 028 US5, the book as a file): `contacts.groupDeleteBody`
+//   (deleting a group keeps its contacts — the confirm must SAY the rule the
+//   core enforces) and `contacts.importDoneInvalid` (the importer counts rows
+//   with no valid address; `importDoneBody` only had words for added/skipped,
+//   so the third number had nowhere to go). No new branch.
+// + 1 more (spec 028 US5, 6c): `contacts.batchSendNeedsMembers` — the group
+//   send's disabled CTA had no words for WHY (an empty group); the founder
+//   asked for the hint.
+if (PATHS.length !== 1627) fail(`expected 1627 paths (1543 leaf + 84 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1543) fail(`expected 1543 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 84) fail(`expected 84 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

@@ -14,6 +14,7 @@
  * parallel type would be the first step towards a parallel component.
  */
 
+import type { QrCode } from '$lib/wallet/qr';
 import type {
 	ActivityGroupModel,
 	ActivityRowModel,
@@ -103,6 +104,12 @@ export interface FlowHeaderModel {
 export interface TokenMarkModel {
 	ticker: string;
 	badgeColor: string;
+	/** Live marks only (spec 028 Phase 9, T492): logo candidates, tried in order; the glyph shows otherwise. */
+	logoUrls?: string[];
+	/** Live marks only: the badge chain's logo over the dot. */
+	badgeLogoUrl?: string;
+	/** Live marks only: no badge — a native coin on its own chain, or a chain drawn as itself. */
+	badgeHidden?: boolean;
 }
 
 /**
@@ -117,11 +124,14 @@ export interface FactRowModel {
 	lead?:
 		| { kind: 'dot'; color: string }
 		| { kind: 'token'; mark: TokenMarkModel }
-		| { kind: 'identicon'; svg: string };
+		/** `address` is the seed; present, the artwork opens the identicon viewer on it. */
+		| { kind: 'identicon'; svg: string; address?: string };
 	/** Renders the value in the mono face (addresses, hashes). */
 	mono?: boolean;
 	/** Shows a copy affordance and its accessible name. */
 	copy?: string;
+	/** The whole text the affordance copies, when `value` is a shortened form. */
+	copyValue?: string;
 }
 
 export type StatusTone = 'success' | 'warning' | 'error' | 'info';
@@ -138,7 +148,13 @@ export interface NetworkRowModel {
 	name: string;
 	code: string;
 	badgeColor: string;
+	/** Live rows: the chain, so a tapped row can name the code it opens. */
+	chainId?: number;
+	/** Live rows: the chain's logo over the lettered badge. */
+	logoUrl?: string;
 	addressDisplay: string;
+	/** Live rows: the whole address the copy button writes. */
+	addressFull?: string;
 	copyLabel: string;
 	qrLabel: string;
 }
@@ -166,19 +182,30 @@ export interface ReceiveQrModel {
 	/** "Use this address to receive assets on Ethereum" / "… to receive USDT …". */
 	title: string;
 	closeLabel: string;
-	/** R3 only: the token's contract, shown above the account card. */
-	contract?: { label: string; value: string; copyLabel: string };
+	/** R3 only: the token's contract, shown above the account card. `copyValue` is the whole address. */
+	contract?: { label: string; value: string; copyLabel: string; copyValue?: string };
 	account: AddressCardModel;
+	/**
+	 * The code to draw (spec 028). Absent = the drawn placeholder, which is what
+	 * the galleries carry; a live screen always supplies a real one.
+	 */
+	code?: QrCode;
 	/** The mark drawn in the middle of the code — the token, or the network. */
 	centre: TokenMarkModel;
 	warning: string;
 	saveImage: string;
+	/** Live only: what 保存图片 produces — R4, about this network or token (T488). */
+	share?: ShareCardModel;
 	viewOnExplorer: string;
+	/** Where "view on explorer" leads — live only; absent, the control is drawn inert. */
+	explorerUrl?: string;
 }
 
 /** R4 — the image "Save image" produces, not a screen someone navigates to. */
 export interface ShareCardModel {
 	headline: string;
+	/** As above: absent in the gallery, real everywhere a person can save it. */
+	code?: QrCode;
 	name: string;
 	lines: [string, string];
 	networkNote: string;
@@ -218,6 +245,13 @@ export interface TxDetailModel {
 	positive: boolean;
 	facts: FactRowModel[];
 	viewOnExplorer: string;
+	/** Where "view on explorer" leads — live only; absent, the control is drawn inert. */
+	explorerUrl?: string;
+	/**
+	 * "Delete record" — the feed's tombstone (spec 028 Phase 8). Absent in the
+	 * drawn fixtures, where the detail is a picture; present on a live row.
+	 */
+	deleteLabel?: string;
 }
 
 /* ------------------------------------------------------------------ assets */
@@ -252,6 +286,8 @@ export interface TokenDetailModel {
 	transactionsTitle: string;
 	rows: ActivityRowModel[];
 	viewOnExplorer: string;
+	/** Where "view on explorer" leads — live only; absent, the control is drawn inert. */
+	explorerUrl?: string;
 }
 
 /* -------------------------------------------------------------- add token  */
@@ -273,7 +309,16 @@ export type AddTokenResult =
 			/** T5b's "deploy the missing contracts" link, on the incompatible chip. */
 			link?: string;
 	  }
-	| { kind: 'not-found'; text: string };
+	| { kind: 'not-found'; text: string }
+	/**
+	 * T3b live (spec 028 Phase 10): the chain index's matches for what was
+	 * typed, before one is chosen and probed. The drawn sheet shows one card;
+	 * a registry of two thousand chains needs the list in between.
+	 */
+	| {
+			kind: 'suggestions';
+			rows: { id: string; mark: TokenMarkModel; name: string; meta: string }[];
+	  };
 
 export interface AddTokenModel {
 	title: string;
@@ -319,10 +364,22 @@ export interface SendTokenCardModel {
 
 /** SD2b's recipient card: who, how much, and a way to drop them. */
 export interface RecipientCardModel {
+	/** Live rows only: the core's draft id, so a per-row pick can name its target. */
+	id?: string;
 	ordinal: string;
 	name: string;
+	/** The seed of the artwork — what the identicon viewer shows beside it. */
+	address: string;
 	identiconSvg: string;
 	amount: string;
+	/**
+	 * Live rows only (spec 028 Phase 10): the figure as typed, in token units,
+	 * for the editable card. `amount` above stays the worded "5 USDT".
+	 */
+	amountValue?: string;
+	/** Live rows only: the field names the editable card announces. */
+	addressLabel?: string;
+	pickLabel?: string;
 	removeLabel: string;
 }
 
@@ -358,6 +415,8 @@ export interface SendFormModel {
 	recipient?: {
 		label: string;
 		lines: [string, string];
+		/** The whole address, when there is one: the identicon viewer's seed. */
+		address?: string;
 		identiconSvg: string;
 		pickLabel: string;
 		/** sweep shows a scan button beside the picker; single does not. */
@@ -390,6 +449,8 @@ export interface ContactPickModel {
 		name: string;
 		group?: string;
 		addressDisplay: string;
+		/** The seed of the artwork — what the identicon viewer shows beside it. */
+		addressFull: string;
 		identiconSvg: string;
 	}[];
 }
@@ -439,7 +500,14 @@ export interface SendConfirmModel {
 	subline: string;
 	facts: FactRowModel[];
 	/** SD3b's recipient list / SD3c's asset list, as a second card. */
-	breakdown?: { lead?: TokenMarkModel; identiconSvg?: string; label: string; value: string }[];
+	breakdown?: {
+		lead?: TokenMarkModel;
+		identiconSvg?: string;
+		/** With `identiconSvg`: its seed, for the viewer. */
+		address?: string;
+		label: string;
+		value: string;
+	}[];
 	cta: string;
 }
 

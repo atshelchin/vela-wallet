@@ -37,6 +37,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "bindings")]
 use ts_rs::TS;
 
+pub use super::contacts_initials::initial_of;
+use super::contacts_initials::{section_letter, section_rank};
 use super::contacts_io;
 pub use super::contacts_io::ContactImportFailure;
 
@@ -532,6 +534,24 @@ pub struct ContactRecipientView {
     pub first_interaction: bool,
 }
 
+/// One letter of the A–Z directory (spec 028 US5 addendum): the addresses
+/// of every contact in the book that files under `letter`, in the BOOK's
+/// order — favourites first, then most-recent — so inside one letter the
+/// person you pay most is still first. Sections run A–Z with `#` last.
+///
+/// Sections cover the WHOLE book. A shell that narrows the list by a search
+/// box (the core has no list-search event; `matches_query` serves the
+/// recipient picker) looks its surviving rows up here and drops the letters
+/// that come out empty — an empty letter header is the shell's to avoid.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub struct ContactSection {
+    /// `"A"`..`"Z"`, or `"#"`.
+    pub letter: String,
+    /// Lowercased addresses, keys into `ContactsView::contacts`.
+    pub addresses: Vec<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "bindings", derive(TS))]
 pub struct ContactsView {
@@ -539,6 +559,9 @@ pub struct ContactsView {
     /// The unified book: saved ⊕ history-derived, tombstone-suppressed,
     /// sorted favourites-first then most-recent.
     pub contacts: Vec<Contact>,
+    /// The same book as an A–Z directory, by the core's one initial rule
+    /// (`contacts_initials.rs`: 阿豪 → A, 妈妈 → M, an address → `#`).
+    pub sections: Vec<ContactSection>,
     pub groups: Vec<ContactGroupView>,
     pub last_import: Option<ContactImportReport>,
     /// Why the last `ImportFile` was refused — before anything was written.
@@ -860,9 +883,11 @@ impl App for Contacts {
             &model.history,
             model.my_address.as_deref(),
         );
+        let contacts = sort_contacts(merged);
         ContactsView {
             loaded: model.loaded,
-            contacts: sort_contacts(merged),
+            sections: section_contacts(&contacts),
+            contacts,
             groups: model
                 .groups
                 .iter()
@@ -1629,6 +1654,28 @@ pub fn sort_contacts(mut list: Vec<Contact>) -> Vec<Contact> {
             .then_with(|| a.address.cmp(&b.address))
     });
     list
+}
+
+/// The A–Z directory over an already-sorted book: each contact files under
+/// the initial of what the person calls it (name → resolved name → nothing,
+/// which is `#`); letters A–Z then `#`; the book's order inside a letter.
+pub fn section_contacts(sorted: &[Contact]) -> Vec<ContactSection> {
+    let mut sections: Vec<ContactSection> = Vec::new();
+    for contact in sorted {
+        let letter = section_letter(&contact_display_name(contact));
+        match sections
+            .iter_mut()
+            .find(|s| s.letter.len() == 1 && s.letter.starts_with(letter))
+        {
+            Some(section) => section.addresses.push(contact.address.clone()),
+            None => sections.push(ContactSection {
+                letter: letter.to_string(),
+                addresses: vec![contact.address.clone()],
+            }),
+        }
+    }
+    sections.sort_by_key(|s| section_rank(s.letter.chars().next().unwrap_or('#')));
+    sections
 }
 
 /// Match a contact against a search query (name or address),

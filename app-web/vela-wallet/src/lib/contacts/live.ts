@@ -3,14 +3,17 @@
  * same display models the drawn components consume. Siblings of the fixture
  * builders — the galleries keep their canon.
  *
- * Two presentation judgements live here, both documented as render concerns:
- * - **Letter sectioning.** The core's list order (favourites first, then
- *   most-recent) is authoritative; the list PAGE presents an A–Z directory,
- *   so contacts are grouped by initial and keep the core's relative order
- *   inside each letter — the same class of work as date-grouping a feed.
+ * One presentation judgement lives here, documented as a render concern:
  * - **Search filtering.** The core has no list-search event (its
  *   `matches_query` serves the recipient picker); filtering the rendered
  *   list by the box's text is display-side narrowing of core-ruled rows.
+ *
+ * Letter sectioning is NOT here any more (spec 028 US5 addendum): which
+ * letter 妈妈 files under is a rule with one right answer, and for two specs
+ * this file answered it wrong — `A–Z or #` filed every Chinese name under `#`
+ * while the 018 drawing files 阿豪 under A and 妈妈 under M. The core's
+ * `ContactsView.sections` now says, for the whole book, by one initial table
+ * every shell shares; the narrowing below drops the letters the search empties.
  */
 
 import type { Contact } from '$lib/core/generated/Contact';
@@ -136,12 +139,11 @@ function toContactModel(contact: Contact, view: ContactsView, identicon: Identic
 	};
 }
 
-function sectionLetter(name: string): string {
-	const first = (name.trim()[0] ?? '#').toUpperCase();
-	return first >= 'A' && first <= 'Z' ? first : '#';
-}
-
-/** Group the core-ordered list by initial; core order survives per letter. */
+/**
+ * The core's A–Z directory, narrowed by the search box: each section keeps
+ * the rows that match, in the core's order, and a letter the search empties
+ * is dropped (an empty letter header is the shell's to avoid).
+ */
 export function letterSections(
 	view: ContactsView,
 	identicon: Identicon,
@@ -153,17 +155,18 @@ export function letterSections(
 		displayName(c).toLowerCase().includes(q) ||
 		(c.resolved_name ?? '').toLowerCase().includes(q) ||
 		c.address.includes(q);
-	const byLetter = new Map<string, ContactModel[]>();
-	for (const contact of view.contacts) {
-		if (!matches(contact)) continue;
-		const letter = sectionLetter(displayName(contact));
-		const bucket = byLetter.get(letter) ?? [];
-		bucket.push(toContactModel(contact, view, identicon));
-		byLetter.set(letter, bucket);
+	const byAddress = new Map(view.contacts.map((c) => [c.address, c]));
+	const out: LetterSectionModel[] = [];
+	for (const section of view.sections) {
+		const contacts: ContactModel[] = [];
+		for (const address of section.addresses) {
+			const contact = byAddress.get(address);
+			if (contact !== undefined && matches(contact))
+				contacts.push(toContactModel(contact, view, identicon));
+		}
+		if (contacts.length > 0) out.push({ letter: section.letter, contacts });
 	}
-	return [...byLetter.entries()]
-		.sort(([a], [b]) => (a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b)))
-		.map(([letter, contacts]) => ({ letter, contacts }));
+	return out;
 }
 
 function toGroupModel(

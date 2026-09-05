@@ -796,8 +796,8 @@ run the same book.
   +44,665 B for the file format, the seven events and the two send rules) and the
   generated wallet-state types regenerated into both mirrors (4 new files,
   2 changed) — a founder-level decision ("业务规则要在 vela core 里面写"), not
-  a slip. Every later spec's "artifact byte-identical" budget restarts from
-  08aa37e9ddf9.
+  a slip. Phase 6c moved it once more (the initial tables); every later spec's
+  "artifact byte-identical" budget restarts from 0d35936e2e2f.
 - **Desktop import fork, with an end date.** Until the desktop dispatches the
   core's `import_file` / `export_requested` and deletes its `contact_io.rs`
   (owner: the vela-wallet-native session, 032+), the same malformed file
@@ -829,6 +829,85 @@ finding above (a hand-off that opened on nobody) and moved a rule into the
 core. Firefox/webkit not run for `contacts-io` — it is not in the
 `STORAGE_SUITES` list; the persistence pair already proves the store on three
 engines.
+
+
+## Phase 6c — two findings the other shells brought back (`vela-wallet-63`) — 2026-09-05
+
+Both surfaced by the iOS session (spec 050) checking what 6cec4ddf did to its
+client, both cross-client, both the founder's call ("做") before they moved.
+
+### Which letter 妈妈 files under is a rule, and now the core's
+
+`contacts/live.ts` sectioned the A–Z list with `first >= 'A' && first <= 'Z'
+? first : '#'` — every Chinese name in one bucket at the bottom of the rail,
+for two specs. The 018 drawing files 阿豪 under A, 妈妈 under M, "DAO 金库"
+under D (`ContactsFixtures`, `SECTION_LETTERS = [A,B,C,D,H,M]`). iOS had
+fixed it locally with Foundation's `.toLatin + .stripDiacritics`; Android and
+macOS would each have reached for their own ICU; wasm has none — which is
+exactly why the web landed on `#`. Four platforms answering a question with
+one right answer is four chances to disagree, so the answer moved to the one
+place that can decide for the platform with the least:
+
+- `app/contacts_initials.rs` (new): one ASCII initial per codepoint for
+  U+4E00–U+9FFF (20,992) and U+00C0–U+024F (400), generated once from ICU's
+  Han→Latin (pinyin, common reading) + `stripDiacritics` via a Swift snippet
+  (below). Pinyin initials are contiguous in GB2312 order, not Unicode order,
+  so the table is per codepoint — ~21 KB against build-web's 4,000,000 B
+  ceiling. Polyphones take their common reading (曾 → C, 重 → Z); Hangul,
+  kana, Cyrillic file under `#` today; a nameless address is `#`.
+- `ContactsView.sections: [{ letter, addresses }]` — the whole book as an
+  A–Z directory, `#` last, the BOOK's order inside a letter (favourites first,
+  then most-recent). NOT a field on the stored `Contact`: the four-shell rule
+  from Phase 6b holds (iOS's codec would have dropped it on the way to disk,
+  serde's would have written it — luck of the codec is what the rule is for).
+- **Search narrowing stays in the shell** (agreed with iOS): sections cover
+  the whole book; a shell that narrows by its search box looks its surviving
+  rows up and drops the letters that come out empty. The core has no
+  list-search event and gains none.
+- Acceptance test, portable: every name in the drawn roster files where the
+  drawing files it — `the_drawn_roster_files_where_the_drawing_files_it`
+  (`app_contacts` 54 → 57). Web's `letterSections` is now a lookup; iOS's
+  local transliteration becomes a deletion; fixtures stay canon (they build
+  their own sections, so the test compares the core against the drawing, not
+  against another implementation).
+
+Regenerate the tables if ICU's readings move:
+
+```swift
+import Foundation
+func initial(_ cp: UInt32) -> Character {
+    let s = String(Character(Unicode.Scalar(cp)!))
+    let latin = s.applyingTransform(.toLatin, reverse: false)!
+        .applyingTransform(.stripDiacritics, reverse: false)!
+    for ch in latin.uppercased() where ch.isASCII && ch.isLetter { return ch }
+    return "#"
+}
+// U+4E00...U+9FFF → HAN, U+00C0...U+024F → LATIN, one char per codepoint.
+```
+
+### The add-network search that sat on 搜索中 forever
+
+The live `/index/fuse-chains.json` carries chain ids above `u32::MAX`
+(7078815900 is the first). `decodeSearchIndex` passed `Number(r.chainId)`
+through for every row; `NetChainIndexEntry.chain_id` is a `u32`, so serde
+refused the ENTIRE `search_index` result over one row, and the wizard showed
+搜索中 with nothing in any log. A row the core cannot represent is now dropped
+(`Number.isInteger` and `0..=0xffff_ffff`), with a unit test carrying the
+real id. Found by the iOS session, which lost an hour to it; the shell's fault
+hook defaulting to silence is the deeper debt and is not fixed here.
+
+### Gates
+
+`cargo test app_contacts` **57** (54 + roster acceptance, initial edges,
+section order) · clippy clean on the touched files · `gen-core-types`
+regenerated (`ContactSection` new, `ContactsView` +1 field) into both mirrors
+· root `tsc --noEmit` clean (the Expo empty view gained `sections: []`) ·
+`pnpm check` **1410 files / 0 errors** · eslint/prettier clean on the touched
+files · unit **870** passed (869 + the over-u32 index test) · build ×15 +
+`build:extension` · e2e `contacts-io` **4/4** + `contacts-persistence` **4/4**
+on chromium. **The wasm moved again**: 08aa37e9ddf9 → **0d35936e2e2f**,
+3,675,329 → **3,702,690 B** (+27,361 B: the 21,392-byte initial tables and
+the sectioning). 297,310 B remain under `MAX_WASM_BYTES` 4,000,000.
 
 ---
 
@@ -933,9 +1012,9 @@ warnings will name the `getUserMedia` error it did not recognise.
   wired to their machines; the six preference rows work; erase erases.
 - **Measured, not assumed**: the core artifact is `vela_core_bg.7caac430e4b3.wasm`
   at 3,630,793 B at this branch's last commit by this session; a later session
-  rebuilt it for the contacts core — twice, landing at `08aa37e9ddf9`
-  (3,675,329 B; Phase 6b) — the fingerprint test reads whatever is served, so
-  it holds either way.
+  rebuilt it for the contacts core — landing at `0d35936e2e2f`
+  (3,702,690 B; Phases 6b–6c) — the fingerprint test reads whatever is served,
+  so it holds either way.
 - **The isolated gate is reusable**: `git worktree add --detach
   /Volumes/data/production/vela-wallet-e2e <sha>`, apply a patch, `pnpm
   install --offline`, `pnpm sync:wasm`, `playwright.isolated.config.ts` on

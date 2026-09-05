@@ -30,6 +30,10 @@ const RECENT = contact('0x' + 'c1'.repeat(20), null);
 const VIEW: ContactsView = {
 	loaded: true,
 	contacts: [ALICE, RECENT],
+	sections: [
+		{ letter: 'A', addresses: [ALICE.address] },
+		{ letter: '#', addresses: [RECENT.address] }
+	],
 	groups: [{ id: 'g1', name: 'Payroll', color: null, members: [ALICE] }],
 	last_import: null,
 	import_failure: null,

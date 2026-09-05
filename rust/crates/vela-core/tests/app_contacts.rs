@@ -1864,3 +1864,73 @@ fn json_omits_absent_fields_and_reads_string_true() {
     // A BOM in front of `{` is still JSON.
     assert!(contacts_io::parse("\u{feff}{}", None).is_ok());
 }
+
+// ---------------------------------------------------------------------------
+// The A–Z directory (spec 028 US5 addendum) — the drawing's rule, in the core
+// ---------------------------------------------------------------------------
+
+use vela_core::app::contacts::{initial_of, section_contacts};
+use vela_core::app::contacts_initials::section_letter;
+
+/// Every name in the drawn roster (app-web `contacts/fixtures.ts`, the 018
+/// canon) files where the drawing files it. The web filed every Chinese name
+/// under `#` for two specs; this is the assertion that would have caught it.
+#[test]
+fn the_drawn_roster_files_where_the_drawing_files_it() {
+    let roster = [
+        ("Alice", 'A'),
+        ("阿豪", 'A'),
+        ("Bartholomew Vanderbilt-Konstantinopoulos.eth", 'B'),
+        ("Bob · 泵泵", 'B'),
+        ("Charlie", 'C'),
+        ("DAO 金库", 'D'),
+        ("hold on", 'H'),
+        ("妈妈", 'M'),
+        ("表弟", 'B'),
+    ];
+    for (name, letter) in roster {
+        assert_eq!(section_letter(name), letter, "{name}");
+    }
+}
+
+/// The edges of the rule: diacritics fold, a nameless address is `#`, so is
+/// a symbol, a digit, whitespace-only and the empty string; polyphones take
+/// their common reading.
+#[test]
+fn initials_fold_diacritics_and_file_the_nameless_under_hash() {
+    assert_eq!(section_letter("éclair"), 'E');
+    assert_eq!(section_letter("Ñandú"), 'N');
+    assert_eq!(section_letter("  zoë"), 'Z');
+    assert_eq!(section_letter("0x1234…abcd"), '#');
+    assert_eq!(section_letter("Ø"), '#');
+    assert_eq!(section_letter("42"), '#');
+    assert_eq!(section_letter("   "), '#');
+    assert_eq!(section_letter(""), '#');
+    assert_eq!(initial_of('曾'), 'C');
+    assert_eq!(initial_of('重'), 'Z');
+    assert_eq!(initial_of('金'), 'J');
+    // Outside every table: Hangul, kana, Cyrillic file under `#` today.
+    assert_eq!(initial_of('한'), '#');
+}
+
+/// Sections run A–Z then `#`, and inside a letter the book's order holds —
+/// favourites first, then most-recent — so the person you pay most stays on
+/// top of their letter.
+#[test]
+fn sections_run_a_to_z_then_hash_and_keep_the_books_order_within_a_letter() {
+    let mut anton = manual(A, Some("Anton"), false, 900.0);
+    anton.address = A.to_owned();
+    let alice = manual(B, Some("Alice"), true, 100.0); // starred → first overall
+    let mama = manual(C, Some("妈妈"), false, 500.0);
+    let nobody = manual(ME, None, false, 50.0); // unnamed → `#`
+    let sut = booted(vec![anton, alice, mama, nobody], vec![], vec![], vec![]);
+    let view = sut.view();
+    let letters: Vec<&str> = view.sections.iter().map(|s| s.letter.as_str()).collect();
+    assert_eq!(letters, vec!["A", "M", "#"]);
+    // Alice (starred) before Anton (more recent, unstarred) — the book's order.
+    assert_eq!(view.sections[0].addresses, vec![B.to_owned(), A.to_owned()]);
+    assert_eq!(view.sections[1].addresses, vec![C.to_owned()]);
+    assert_eq!(view.sections[2].addresses, vec![ME.to_owned()]);
+    // The pure function agrees with the view.
+    assert_eq!(section_contacts(&view.contacts), view.sections);
+}

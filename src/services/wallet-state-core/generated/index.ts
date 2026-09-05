@@ -67,6 +67,7 @@ export * from './ContactKind';
 export * from './ContactOperation';
 export * from './ContactRecipientView';
 export * from './ContactSaveInput';
+export * from './ContactSection';
 export * from './ContactShellResult';
 export * from './ContactSource';
 export * from './ContactTombstone';

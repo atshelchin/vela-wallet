@@ -5,13 +5,19 @@ import type { ContactGroupView } from "./ContactGroupView";
 import type { ContactImportFailure } from "./ContactImportFailure";
 import type { ContactImportReport } from "./ContactImportReport";
 import type { ContactRecipientView } from "./ContactRecipientView";
+import type { ContactSection } from "./ContactSection";
 
 export type ContactsView = { loaded: boolean, 
 /**
  * The unified book: saved ⊕ history-derived, tombstone-suppressed,
  * sorted favourites-first then most-recent.
  */
-contacts: Array<Contact>, groups: Array<ContactGroupView>, last_import: ContactImportReport | null, 
+contacts: Array<Contact>, 
+/**
+ * The same book as an A–Z directory, by the core's one initial rule
+ * (`contacts_initials.rs`: 阿豪 → A, 妈妈 → M, an address → `#`).
+ */
+sections: Array<ContactSection>, groups: Array<ContactGroupView>, last_import: ContactImportReport | null, 
 /**
  * Why the last `ImportFile` was refused — before anything was written.
  * Mutually exclusive with `last_import`; both clear on `ImportAcknowledged`.

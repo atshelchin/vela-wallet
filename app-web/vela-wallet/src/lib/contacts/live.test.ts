@@ -37,6 +37,12 @@ const VIEW: ContactsView = {
 	// Core order: favourites first, then recency — Anton before Alice would be
 	// the core's business; this fixture has Alice (fav) first.
 	contacts: [ALICE, ANTON, BOB, UNNAMED],
+	// What the core's initial rule says for these four (spec 028 US5 addendum).
+	sections: [
+		{ letter: 'A', addresses: [ALICE.address, ANTON.address] },
+		{ letter: 'B', addresses: [BOB.address] },
+		{ letter: '#', addresses: [UNNAMED.address] }
+	],
 	groups: [{ id: 'g1', name: 'Payroll', color: null, members: [ALICE, BOB] }],
 	last_import: null,
 	import_failure: null,
